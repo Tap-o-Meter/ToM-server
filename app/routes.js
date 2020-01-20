@@ -140,7 +140,7 @@ module.exports = function(app, passport) {
   });
 
   app.post("/getPersonal", function(req, res) {
-    Worker.find({ cardId: req.body.cardId })
+    Worker.findOne({ cardId: req.body.cardId })
       .then(data => res.json({ confirmation: "success", data: data }))
       .catch(err => res.json({ confirmation: "FAIL" }));
   });
