@@ -1,0 +1,43 @@
+{
+  "name": "autohome",
+  "main": "server.js",
+  "dependencies": {
+    "bcrypt-nodejs": "latest",
+    "bluebird": "^3.7.1",
+    "body-parser": "^1.19.0",
+    "cloudinary": "^1.16.0",
+    "connect-flash": "~0.1.1",
+    "cookie-parser": "^1.4.4",
+    "ejs": "^2.7.1",
+    "express": "^4.17.1",
+    "express-session": "^1.17.0",
+    "method-override": "~2.3.6",
+    "mongoose": "^5.7.5",
+    "morgan": "^1.9.1",
+    "multer": "^1.4.2",
+    "multer-storage-cloudinary": "^2.2.1",
+    "object-assign": "^4.1.1",
+    "passport": "~0.3.2",
+    "passport-facebook": "~2.1.1",
+    "passport-google-oauth": "~1.0.0",
+    "passport-local": "~1.0.0",
+    "passport-twitter": "~1.0.4",
+    "socket.io": "^2.3.0"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "version": "1.0.0",
+  "description": "pruebas de autohome",
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elastra21/AutoHome.git"
+  },
+  "author": "Emmanuel Lastra",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/elastra21/AutoHome/issues"
+  },
+  "homepage": "https://github.com/elastra21/AutoHome#readme"
+}
