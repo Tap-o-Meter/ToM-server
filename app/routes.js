@@ -86,18 +86,6 @@ module.exports = function(app, passport) {
   //   });
   // });
 
-  app.post("/uploadWorker", function(req, res, next) {
-    var ObjectId = mongoose.Types.ObjectId;
-    var newWorker = new Worker();
-    newWorker._id = new ObjectId().toString();
-    const worker = { ...req.body };
-    Object.assign(newWorker, worker);
-    newWorker
-      .save()
-      .then(data => res.json({ confirmation: "success", data }))
-      .catch(err => res.json({ confirmation: "FAIL" }));
-  });
-
   app.post("/addPlace", function(req, res, next) {
     var newPlace = new Place();
     Object.assign(newPlace, req.body);
@@ -152,7 +140,7 @@ module.exports = function(app, passport) {
   });
 
   app.post("/getPersonal", function(req, res) {
-    Worker.find({ workerAt: req.body.idPlace })
+    Worker.find({ cardId: req.body.cardId })
       .then(data => res.json({ confirmation: "success", data: data }))
       .catch(err => res.json({ confirmation: "FAIL" }));
   });
