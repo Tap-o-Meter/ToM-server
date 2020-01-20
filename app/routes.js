@@ -70,20 +70,32 @@ module.exports = function(app, passport) {
     return res.json({ confirmation: "success", data: urls });
   });
 
-  app.post("/uploadWorker", parser.array("image", 3), function(req, res) {
-    const urls = req.files.map(({ url }) => {
-      var ObjectId = mongoose.Types.ObjectId;
-      var newWorker = new Worker();
-      newWorker._id = new ObjectId().toString();
-      const worker = { ...req.body, foto: url };
-      worker.horarios = [{}, {}, {}];
-      worker.turno = req.body.turno.split(",");
-      Object.assign(newWorker, worker);
-      newWorker
-        .save()
-        .then(data => res.json({ confirmation: "success", data }))
-        .catch(err => res.json({ confirmation: "FAIL" }));
-    });
+  // app.post("/uploadWorker", parser.array("image", 3), function(req, res) {
+  //   const urls = req.files.map(({ url }) => {
+  //     var ObjectId = mongoose.Types.ObjectId;
+  //     var newWorker = new Worker();
+  //     newWorker._id = new ObjectId().toString();
+  //     const worker = { ...req.body, foto: url };
+  //     worker.horarios = [{}, {}, {}];
+  //     worker.turno = req.body.turno.split(",");
+  //     Object.assign(newWorker, worker);
+  //     newWorker
+  //       .save()
+  //       .then(data => res.json({ confirmation: "success", data }))
+  //       .catch(err => res.json({ confirmation: "FAIL" }));
+  //   });
+  // });
+
+  app.post("/uploadWorker", function(req, res, next) {
+    var ObjectId = mongoose.Types.ObjectId;
+    var newWorker = new Worker();
+    newWorker._id = new ObjectId().toString();
+    const worker = { ...req.body };
+    Object.assign(newWorker, worker);
+    newWorker
+      .save()
+      .then(data => res.json({ confirmation: "success", data }))
+      .catch(err => res.json({ confirmation: "FAIL" }));
   });
 
   app.post("/addPlace", function(req, res, next) {
