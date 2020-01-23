@@ -141,7 +141,7 @@ module.exports = function(app, passport) {
   app.post("/getPersonal", function(req, res) {
     Worker.findOne({ cardId: req.body.cardId })
       .then(data => {
-        if (data) res.json({ confirmation: "success", data: newWorker });
+        if (data) res.json({ confirmation: "success", data });
         else res.json({ confirmation: "fail" });
       })
       .catch(err => res.json({ confirmation: "FAIL" }));
