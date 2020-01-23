@@ -133,7 +133,6 @@ module.exports = function(app, passport) {
       if (doc) {
         res.json({ confirmation: "success", data: newWorker });
       } else {
-        console.log(err.message);
         res.json({ confirmation: "fail" });
       }
     });
@@ -141,7 +140,10 @@ module.exports = function(app, passport) {
 
   app.post("/getPersonal", function(req, res) {
     Worker.findOne({ cardId: req.body.cardId })
-      .then(data => res.json({ confirmation: "success", data: data }))
+      .then(data => {
+        if (data) res.json({ confirmation: "success", data: newWorker });
+        else res.json({ confirmation: "fail" });
+      })
       .catch(err => res.json({ confirmation: "FAIL" }));
   });
 
