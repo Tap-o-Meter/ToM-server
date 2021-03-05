@@ -1,0 +1,2 @@
+Express server listening on port 3030 in development mode
+error: Forever detected script was killed by signal: SIGKILL

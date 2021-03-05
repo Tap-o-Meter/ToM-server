@@ -1,33 +1,57 @@
 // app/routes.js
 var mongoose = require("mongoose");
-var Place = require("../app/models/place");
 var User = require("../app/models/user");
-var Cita = require("../app/models/cita");
 var Worker = require("../app/models/worker");
-var path = require("path");
+var Keg = require("../app/models/keg");
+var Beer = require("../app/models/beer");
+var Stock = require("../app/models/stock");
+var Sale = require("../app/models/sale");
+var Line = require("../app/models/Line");
+var Client = require("../app/models/Client");
 const multer = require("multer");
-const cloudinary = require("cloudinary");
-const cloudinaryStorage = require("multer-storage-cloudinary");
+const path = require("path");
+const fs = require("fs");
+const { exec } = require("child_process");
+const config = require("../config");
 
-cloudinary.config({
-  cloud_name: "hwx5qacnd",
-  api_key: "732127336931133",
-  api_secret: "Jg40bHx0UIewDX5DjFU-uIQP9sY"
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
+  if (!allowedTypes.includes(file.mimetype)) {
+    const error = new Error("Incorrect file");
+    error.code = "INCORRECT_FILETYPE";
+    return cb(error, false);
+  }
+  cb(null, true);
+};
+
+var storage = multer.diskStorage({
+  destination: function(req, file, cb) {
+    const logoPath = "/home/pi/Documents/dist";
+    const mainPath = path.dirname(require.main.filename) + "/images";
+    const destination =
+      req.route.path === "/editPlaceInfo" ? logoPath : mainPath;
+    cb(null, destination);
+  },
+  filename: function(req, file, cb) {
+    const extensions = [".jpeg", ".jpg", ".png"];
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
+    const index = allowedTypes.findIndex(type => type.includes(file.mimetype));
+    const imageName = req.route.path === "/editPlaceInfo" ? "logo" : Date.now();
+    cb(null, imageName + extensions[index]);
+  }
 });
 
-const storage = cloudinaryStorage({
-  cloudinary: cloudinary,
-  folder: "bnt",
-  allowedFormats: ["jpg", "png"]
-});
-const parser = multer({
+var upload = multer({
   storage: storage,
-  limits: { fieldSize: 25 * 1024 * 1024 }
+  fileFilter,
+  limits: {
+    fileSize: 1000000
+  }
 });
 
-module.exports = function(app, passport) {
+module.exports = function(app, passport, io) {
   app.get("/", function(req, res) {
-    res.render("index.html"); // load the index.ejs file
+    res.render("index.ejs"); // load the index.ejs file
   });
 
   app.post("/login", function(req, res, next) {
@@ -35,20 +59,7 @@ module.exports = function(app, passport) {
       if (!user) {
         return res.json({ confirmation: "fail" });
       } else {
-        if (user.type === "partner") {
-          Place.findOne({ owner: user._id }, function(err, data) {
-            if (err) {
-              res.json({ confirmation: "fail" });
-            } else {
-              return res.json({
-                confirmation: "success",
-                data: { ...user._doc, place: data }
-              });
-            }
-          });
-        } else {
-          return res.json({ confirmation: "success", data: user });
-        }
+        return res.json({ confirmation: "success", data: user });
       }
     })(req, res, next);
   });
@@ -64,82 +75,147 @@ module.exports = function(app, passport) {
     })(req, res, next);
   });
 
-  app.post("/uploadPicture", parser.array("image"), function(req, res) {
-    console.log(req.files); // to see what is returned to you
-    const urls = req.files.map(({ url }) => url);
-    return res.json({ confirmation: "success", data: urls });
+  app.get("/getImage/:name", function(req, res) {
+    const file =
+      path.dirname(require.main.filename) + "/images/" + req.params.name;
+    if (fs.existsSync(file)) res.sendFile(path.resolve(file));
+    else res.status(422).json({ error: "There's no Image" });
   });
 
-  // app.post("/uploadWorker", parser.array("image", 3), function(req, res) {
-  //   const urls = req.files.map(({ url }) => {
-  //     var ObjectId = mongoose.Types.ObjectId;
-  //     var newWorker = new Worker();
-  //     newWorker._id = new ObjectId().toString();
-  //     const worker = { ...req.body, foto: url };
-  //     worker.horarios = [{}, {}, {}];
-  //     worker.turno = req.body.turno.split(",");
-  //     Object.assign(newWorker, worker);
-  //     newWorker
-  //       .save()
-  //       .then(data => res.json({ confirmation: "success", data }))
-  //       .catch(err => res.json({ confirmation: "FAIL" }));
-  //   });
-  // });
-
-  app.post("/addPlace", function(req, res, next) {
-    var newPlace = new Place();
-    Object.assign(newPlace, req.body);
-    User.findOneAndUpdate(
-      { _id: { $regex: ".*" + req.body.owner }, type: "onProcess" },
-      { $set: { type: "partner" } },
-      { new: true, strict: false },
-      (err, doc) => {
-        if (doc) {
-          newPlace.owner = doc._id;
-          newPlace.categoria = req.body.categoria.split(",");
-          newPlace.dias = req.body.dias.split(",");
-          newPlace.horario = req.body.horario.split("-");
-          newPlace.save(function(err) {
-            if (doc) {
-              res.json({ confirmation: "success", data: newPlace });
-            } else {
-              res.json({ confirmation: "fail", err: "onSave" });
-            }
-          });
-        } else {
-          res.json({ confirmation: "fail", err: "noUser" });
-        }
-      }
-    );
-  });
-
-  app.get("/getPlaces", function(req, res, next) {
-    Place.find({}, function(err, data) {
-      if (err) {
-        res.json({ confirmation: "fail" });
-      } else {
-        const places = JSON.parse(JSON.stringify(data));
-        return res.json({ confirmation: "success", data: places });
-      }
-    });
-  });
-
-  app.post("/addPersonal", function(req, res) {
+  app.post("/addPersonal", upload.single("file"), function(req, res) {
     var ObjectId = mongoose.Types.ObjectId;
     var newWorker = new Worker();
     newWorker._id = new ObjectId().toString();
+    newWorker.foto = req.file ? req.file.filename : null;
     Object.assign(newWorker, req.body);
-    newWorker.save(function(err, doc) {
-      if (doc) {
-        res.json({ confirmation: "success", data: newWorker });
-      } else {
-        res.json({ confirmation: "fail" });
-      }
-    });
+    Worker.findOne({ cardId: req.body.cardId })
+      .then(data => {
+        if (data) res.json({ confirmation: "fail", message: "user exist" });
+        else {
+          newWorker.save(function(err, doc) {
+            if (doc) res.json({ confirmation: "success", data: newWorker });
+            else res.json({ confirmation: "fail" });
+          });
+        }
+      })
+      .catch(err => res.json({ confirmation: "FAIL" }));
   });
 
-  app.post("/getPersonal", function(req, res) {
-    Worker.findOne({ cardId: req.body.cardId })
+  app.post("/addClient", function(req, res) {
+    var ObjectId = mongoose.Types.ObjectId;
+    var newClient = new Client();
+    newClient._id = new ObjectId().toString();
+    newClient.clientSince = new Date();
+    Object.assign(newClient, req.body);
+    Client.findOne({ cardId: req.body.cardId })
+      .then(data => {
+        if (data) res.json({ confirmation: "fail", message: "user exist" });
+        else {
+          newClient.save(function(err, doc) {
+            if (doc) res.json({ confirmation: "success", data: newClient });
+            else res.json({ confirmation: "fail" });
+          });
+        }
+      })
+      .catch(err => res.json({ confirmation: "FAIL" }));
+  });
+
+  app.get("/getClients", function(req, res) {
+    Client.find({})
+      .then(clients => {
+        if (clients) res.json({ confirmation: "success", data: clients });
+        else res.json({ confirmation: "fail" });
+      })
+      .catch(err => res.json({ confirmation: "FAIL" }));
+  });
+
+  app.post("/editClient", function(req, res) {
+    Client.findOne({ _id: req.body.id })
+      .then(data => {
+        if (data) {
+          data.name = req.body.name;
+          data.lastName = req.body.lastName;
+          data.cardId = req.body.cardId;
+          data.markModified("cardId");
+          data.save();
+          res.json({ confirmation: "success", data });
+        } else res.json({ confirmation: "fail" });
+      })
+      .catch(err => {
+        res.json({ confirmation: "FAIL" });
+      });
+  });
+
+  app.post("/checkClient", function(req, res) {
+    Client.findOne({ cardId: req.body.cardId })
+      .then(data => {
+        if (data) {
+          res.json({ confirmation: "success", data });
+        } else res.json({ confirmation: "fail" });
+      })
+      .catch(err => {
+        res.json({ confirmation: "FAIL" });
+      });
+  });
+
+  app.post("/addSaleClient", function(req, res) {
+    Client.findOne({ cardId: req.body.cardId })
+      .then(data => {
+        if (data) {
+          data.beersDrinked = data.beersDrinked.concat(req.body.beers);
+          switch (data.beersDrinked) {
+            case data.beersDrinked <= config.levels[1]:
+              data.level = level++;
+              break;
+            case data.beersDrinked <= config.levels[2]:
+              data.level = level++;
+              break;
+            default:
+          }
+          data.markModified("beersDrinked");
+          data.save();
+          res.json({ confirmation: "success", data });
+        } else res.json({ confirmation: "fail" });
+      })
+      .catch(err => {
+        res.json({ confirmation: "FAIL" });
+      });
+  });
+
+  app.post("/editPersonal", upload.single("file"), function(req, res) {
+    Worker.findOne({ _id: req.body.id })
+      .then(data => {
+        if (data) {
+          if (req.file && data.foto) {
+            const mainPath = path.dirname(require.main.filename) + "/images/";
+            fs.unlink(mainPath + data.foto, function(err) {});
+          }
+          data.nombre = req.body.nombre;
+          data.apellidos = req.body.apellidos;
+          data.cardId = req.body.cardId;
+          data.foto = req.file ? req.file.filename : data.foto;
+          data.markModified("cardId");
+          data.save();
+          res.json({ confirmation: "success", data });
+        } else res.json({ confirmation: "fail" });
+      })
+      .catch(err => {
+        console.log(err);
+        res.json({ confirmation: "FAIL" });
+      });
+  });
+
+  app.post("/deleteWorker", function(req, res) {
+    Worker.remove({ _id: req.body.id })
+      .then(err => {
+        if (err) res.json({ confirmation: "fail" });
+        else res.json({ confirmation: "success" });
+      })
+      .catch(err => res.json({ confirmation: "FAIL" }));
+  });
+
+  app.get("/getWorkers", function(req, res) {
+    Worker.find({})
       .then(data => {
         if (data) res.json({ confirmation: "success", data });
         else res.json({ confirmation: "fail" });
@@ -147,18 +223,284 @@ module.exports = function(app, passport) {
       .catch(err => res.json({ confirmation: "FAIL" }));
   });
 
-  app.post("/getWorker", function(req, res) {
-    Worker.findOne({ _id: req.body.id })
-      .then(data => res.json({ confirmation: "success", data: data }))
+  app.get("/getBeerInfo/:idKeg", function(req, res) {
+    Keg.findOne({ _id: req.params.idKeg })
+      .then(keg => {
+        if (keg) {
+          console.log(keg.beerId);
+          Beer.findOne({ _id: keg.beerId }).then(beer => {
+            if (beer)
+              res.json({ confirmation: "success", data: { keg, beer } });
+            else res.json({ confirmation: "fail" });
+          });
+        } else res.json({ confirmation: "fail" });
+      })
       .catch(err => res.json({ confirmation: "FAIL" }));
   });
 
-  app.post("/updateHorarios", function(req, res) {
-    const { id, index, horario } = req.body;
-    Worker.findOne({ _id: id }, (err, data) => {
+  app.get("/client-purchase/:clientId", function(req, res) {
+    const fullDate = new Date();
+    Sale.find({
+      clientId: req.params.clientId,
+      date: { $gte: new Date(fullDate.getFullYear(), fullDate.getMonth(), 1) }
+    })
+      .then(async sales => {
+        console.log(sales);
+        if (sales.length > 0) {
+          const salesWithBeer = [];
+          sales.map((sale, index) => {
+            var beerName = "";
+            Keg.findOne({ _id: sale.kegId }).then(keg => {
+              if (keg) {
+                Beer.findOne({ _id: keg.beerId }).then(beer => {
+                  salesWithBeer.push({ ...sale._doc, beerName: beer.name });
+                  if (index === sales.length - 1)
+                    res.json({ confirmation: "success", data: salesWithBeer });
+                });
+              }
+            });
+          });
+        } else res.json({ confirmation: "fail" });
+      })
+      .catch(err => res.json({ confirmation: "FAIL" }));
+  });
+
+  app.get("/getStorage", function(req, res) {
+    exec("df -h", (error, stdout, stderr) => {
+      if (error || stderr) {
+        console.log(`error: ${error.message}`);
+        res.json({ confirmation: "fail" });
+      } else res.json({ confirmation: "success", data: stdout });
+    });
+  });
+
+  app.post("/getWorker", function(req, res) {
+    Worker.findOne({ cardId: req.body.cardId }, function(err, data) {
       if (data) {
-        data.horarios[index] = horario;
-        data.markModified("horarios");
+        res.json({ confirmation: "success", data: data });
+      } else {
+        res.json({ confirmation: "fail" });
+      }
+    });
+  });
+
+  app.post("/editPlaceInfo", upload.single("file"), function(req, res) {
+    const path = "/home/pi/Documents/Beer_control/data";
+    fs.writeFile(
+      path + "/local.json",
+      JSON.stringify(req.body),
+      "utf-8",
+      function(err) {
+        if (err) res.json({ confirmation: "fail" });
+        else res.json({ confirmation: "success" });
+      }
+    );
+  });
+
+  app.post("/addEmergencyCard", upload.single("file"), function(req, res) {
+    const path = "/home/pi/Documents/Beer_control/data";
+    fs.writeFile(
+      path + "/.emergencyCard.json",
+      JSON.stringify(req.body),
+      "utf-8",
+      function(err) {
+        if (err) res.json({ confirmation: "fail" });
+        else {
+          io.emit("addEmergencyCard", { data: req.body.cardId });
+          res.json({ confirmation: "success" });
+        }
+      }
+    );
+  });
+
+  app.post("/disconnectLine", function(req, res) {
+    Line.findOne({ noLinea: req.body.noLinea }, function(err, data) {
+      if (data) {
+        Keg.findOne({ _id: data.idKeg }, function(err, keg) {
+          if (keg) {
+            keg.status = "DISCONNECTED";
+            keg.markModified("status");
+            keg.save();
+          }
+        });
+        data.idKeg = "";
+        data.markModified("idKeg");
+        data.save();
+        io.sockets.connected[data.socketId].emit("disconnectedLine");
+        res.json({ confirmation: "success" });
+      } else {
+        res.json({ confirmation: "fail" });
+      }
+    });
+  });
+
+  app.post("/sale_completed", function(req, res) {
+    var ObjectId = mongoose.Types.ObjectId;
+    var newSale = new Sale();
+    newSale._id = new ObjectId().toString();
+    newSale.date = new Date();
+    req.body.clientId ? (newSale.clientId = req.body.clientId) : null;
+    Object.assign(newSale, req.body);
+    Keg.findOne({ _id: req.body.kegId }, (err, data) => {
+      if (data) {
+        console.log(data.available - req.body.qty);
+        data.available = data.available - req.body.qty;
+        switch (req.body.concept) {
+          case "TASTER":
+            data.taster = data.taster + 1;
+            break;
+          case "PINT":
+            data.soldPints = data.soldPints + 1;
+            break;
+          case "GROWLER":
+            data.growlers.push({ qty: newSale.qty });
+            break;
+          case "MERMA":
+            data.merma += newSale.qty;
+            break;
+          default:
+        }
+        data.markModified("available");
+        data.save();
+        newSale.save((err, doc) => {
+          if (req.body.clientId) {
+            Client.findOne({ _id: req.body.clientId }, (err, client) => {
+              if (client) {
+                client.beersDrinked++;
+                client.markModified("beersDrinked");
+                client.save();
+              }
+            });
+          }
+          if (doc) {
+            res.json({ confirmation: "success", data: doc });
+          } else {
+            res.json({ confirmation: "fail" });
+          }
+        });
+      } else res.json({ confirmation: "fail" });
+    });
+  });
+
+  app.get("/sales/:from/:to", function(req, res) {
+    const fullDate = new Date();
+    Sale.find(
+      {
+        date: {
+          $gte: new Date(fullDate.getFullYear(), req.params.from, 1),
+          $lt: new Date(fullDate.getFullYear(), req.params.to, 1)
+        }
+      },
+      (err, data) => {
+        if (data) {
+          res.json({ confirmation: "success", data: data });
+        } else {
+          res.json({ confirmation: "fail" });
+        }
+      }
+    );
+  });
+
+  app.post("/connect-line", function(req, res) {
+    const date = new Date();
+    Line.findOne({ _id: req.body.id }, (err, line) => {
+      if (line) {
+        if (line.idKeg) {
+          Keg.findOne({ _id: line.idKeg }, (err, oldKeg) => {
+            if (oldKeg) {
+              oldKeg.status = req.body.newStatus;
+              oldKeg.lastLine = {
+                noLinea: line.noLinea,
+                date:
+                  date.getFullYear() +
+                  "/" +
+                  date.getMonth() +
+                  "/" +
+                  date.getDate()
+              };
+              oldKeg.markModified("status");
+              oldKeg.save();
+            } else res.json({ confirmation: "fail" });
+          });
+        }
+        Keg.findOne({ _id: req.body.newKeg }, (err, newKeg) => {
+          if (newKeg) {
+            newKeg.status = "CONNECTED";
+            newKeg.markModified("status");
+            newKeg.save();
+            line.idKeg = req.body.newKeg;
+            line.markModified("idKeg");
+            line.save();
+            io.emit("changeLine", { data: line });
+            res.json({ confirmation: "success", data: line });
+          } else res.json({ confirmation: "fail" });
+        });
+      } else res.json({ confirmation: "fail" });
+    });
+  });
+
+  app.post("/worker_sales", function(req, res) {
+    const fullDate = new Date();
+    Sale.find(
+      {
+        workerId: req.body.id,
+        date: { $gte: new Date(fullDate.getFullYear(), fullDate.getMonth(), 1) }
+      },
+      (err, data) => {
+        if (err) {
+          res.json({ confirmation: "fail" });
+        } else {
+          var promises = data.map(async function(sale) {
+            const keg = await Keg.findOne({ _id: sale.kegId }).exec();
+            const beer = await Beer.findOne({ _id: keg.beerId }).exec();
+            return { ...sale._doc, beerName: beer.name };
+          });
+
+          Promise.all(promises)
+            .then(function(results) {
+              console.log("se armo");
+              res.json({ confirmation: "success", data: results });
+            })
+            .catch(err => console.log(err.message));
+        }
+      }
+    );
+  });
+
+  app.get("/placeLogo", function(req, res) {
+    const folder = "/home/pi/Documents/dist/";
+    var fileName;
+    fs.readdirSync(folder).forEach(file => {
+      if (file.includes("logo")) {
+        console.log(folder + file);
+        fileName = folder + file;
+      }
+    });
+    if (fileName) res.sendFile(path.resolve(fileName));
+    else res.status(422).json({ error: "There's no Image" });
+  });
+
+  app.get("/setPlaceLogo", function(req, res) {
+    const folder = "/home/pi/Documents/dist/";
+    var fileName;
+    fs.readdirSync(folder).forEach(file => {
+      if (file.includes("logo")) {
+        console.log(folder + file);
+        fileName = folder + file;
+      }
+    });
+    if (fileName) res.sendFile(path.resolve(fileName));
+    else res.status(422).json({ error: "There's no Image" });
+  });
+
+  app.post("/setSchedule", function(req, res) {
+    const { id, horario } = req.body;
+    Worker.findOne({ _id: id }, (err, data) => {
+      const decodedData = JSON.parse(horario);
+      if (data) {
+        console.log(decodedData);
+        data.horario = decodedData;
+        data.markModified("horario");
         data.save((err, worker) => {
           if (worker) {
             res.json({ confirmation: "success", data: worker });
@@ -172,50 +514,216 @@ module.exports = function(app, passport) {
     });
   });
 
-  app.post("/makeAppointment", function(req, res, next) {
-    const { fecha, idWorker, idPlace, idUser, hora } = req.body;
-    var newCita = new Cita();
-    var ObjectId = mongoose.Types.ObjectId;
-    newCita._id = new ObjectId().toString();
-    Object.assign(newCita, req.body);
-    Worker.updateOne(
-      {
-        _id: idWorker,
-        horarios: {
-          $elemMatch: {
-            fecha: fecha,
-            datos: { $elemMatch: { disponible: true } }
-          }
-        }
-      },
-      { $set: { "horarios.$.datos.$[inner].disponible": false } },
-      { arrayFilters: [{ "inner.hora": hora }] },
-      (err, doc) => {
-        if (doc.nModified > 0) {
-          newCita.save(function(err, data) {
-            if (data) {
-              res.json({ confirmation: "success", data: data });
-            } else {
-              console.log("valio en segundo");
-              res.json({ confirmation: "fail" });
-            }
-          });
-        } else {
-          console.log("valio en primero");
-          res.json({ confirmation: "fail" });
-        }
-      }
-    );
+  app.post("/upload", upload.single("file"), (req, res) => {
+    res.json({ file: req.file });
   });
 
-  app.post("/getAppointments", function(req, res) {
-    Cita.find(req.body, function(err, data) {
+  app.post("/addKeg", function(req, res) {
+    var responseFlag = 0;
+    for (var i = 0; i < req.body.qty; i++) {
+      const ObjectId = mongoose.Types.ObjectId;
+      const newKeg = new Keg();
+      newKeg._id = new ObjectId().toString();
+      newKeg.available = req.body.capacity;
+      // newKeg.image = req.file ? req.file.filename : null;
+      Object.assign(newKeg, req.body);
+      newKeg.save(function(err, doc) {
+        responseFlag++;
+        console.log(responseFlag + " " + req.body.qty);
+        if (responseFlag == req.body.qty) {
+          if (doc) {
+            res.json({ confirmation: "success", data: newKeg });
+          } else {
+            res.json({ confirmation: "fail" });
+          }
+        }
+      });
+    }
+  });
+  ////////////////////////////////////////////////////////////////////////
+  app.post("/addStock", upload.single("file"), function(req, res) {
+    var ObjectId = mongoose.Types.ObjectId;
+    var newStock = new Stock();
+    newStock._id = new ObjectId().toString();
+    newStock.image = req.file ? req.file.filename : null;
+    Object.assign(newStock, req.body);
+    newStock.save(function(err, doc) {
+      if (doc) {
+        res.json({
+          confirmation: "success",
+          data: newStock
+          // file: req.file.filename,
+          // path: path.dirname(require.main.filename)
+        });
+      } else {
+        res.json({ confirmation: "fail" });
+      }
+    });
+  });
+
+  app.get("/getStock", function(req, res) {
+    Stock.find({}, function(err, data) {
       if (data) {
         res.json({ confirmation: "success", data: data });
       } else {
         res.json({ confirmation: "fail" });
       }
     });
+  });
+
+  app.post("/deletStock", function(req, res) {
+    Stock.remove({ _id: req.body.id }, function(err) {
+      if (err) {
+        res.json({ confirmation: "fail" });
+      } else {
+        res.json({ confirmation: "success" });
+      }
+    });
+  });
+
+  app.post("/subtract_inventory", function(req, res) {
+    const items = req.body.items;
+    items.forEach(item => {
+      Stock.findOne({ _id: item.id }, (err, data) => {
+        if (err) res.json({ confirmation: "fail" });
+        else {
+          data.volume = data.volume - item.value;
+          data.markModified("volume");
+          data.save();
+        }
+      });
+      res.json({ confirmation: "success" });
+    });
+  });
+  app.post("/add_inventory", function(req, res) {
+    const items = req.body.items;
+    items.forEach(item => {
+      Stock.findOne({ _id: item.id }, (err, data) => {
+        if (err) res.json({ confirmation: "fail" });
+        else {
+          data.volume = data.volume + parseInt(item.value);
+          data.markModified("volume");
+          data.save();
+        }
+      });
+      res.json({ confirmation: "success" });
+    });
+  });
+
+  ////////////////////////////////////////////////////////////////////////
+
+  app.get("/getKegs", function(req, res) {
+    Keg.find({ status: { $ne: "EMPTY" } }, function(err, data) {
+      if (data) {
+        res.json({ confirmation: "success", data: data });
+      } else {
+        res.json({ confirmation: "fail" });
+      }
+    });
+  });
+
+  app.post("/addBeer", upload.single("file"), function(req, res) {
+    var ObjectId = mongoose.Types.ObjectId;
+    var newBeer = new Beer();
+    newBeer._id = new ObjectId().toString();
+    newBeer.image = req.file ? req.file.filename : null;
+    Object.assign(newBeer, req.body);
+    newBeer.save(function(err, doc) {
+      if (doc) {
+        res.json({ confirmation: "success", data: doc });
+      } else {
+        res.json({ confirmation: "fail" });
+      }
+    });
+  });
+
+  app.post("/editBeer", upload.single("file"), function(req, res) {
+    Beer.findOne({ _id: req.body.id }).then(data => {
+      if (data) {
+        if (req.file && data.image) {
+          const mainPath = path.dirname(require.main.filename) + "/images/";
+          fs.unlink(mainPath + data.image, function(err) {});
+        }
+        data.name = req.body.name;
+        data.brand = req.body.brand;
+        data.style = req.body.style;
+        data.type = req.body.type;
+        data.abv = req.body.abv;
+        data.ibu = req.body.ibu;
+        data.description = req.body.description;
+        data.srm = req.body.srm;
+        data.image = req.file ? req.file.filename : data.image;
+        data.markModified("name");
+        data.save();
+        res.json({ confirmation: "success", data });
+      } else res.json({ confirmation: "fail" });
+    });
+  });
+
+  app.get("/getBeers", function(req, res) {
+    Beer.find(req.body, function(err, data) {
+      if (data) {
+        res.json({ confirmation: "success", data: data });
+      } else {
+        res.json({ confirmation: "fail" });
+      }
+    });
+  });
+
+  // app.post("/makeAppointment", function(req, res, next) {
+  //   const { fecha, idWorker, idPlace, idUser, hora } = req.body;
+  //   var newCita = new Cita();
+  //   var ObjectId = mongoose.Types.ObjectId;
+  //   newCita._id = new ObjectId().toString();
+  //   Object.assign(newCita, req.body);
+  //   Worker.updateOne(
+  //     {
+  //       _id: idWorker,
+  //       horarios: {
+  //         $elemMatch: {
+  //           fecha: fecha,
+  //           datos: { $elemMatch: { disponible: true } }
+  //         }
+  //       }
+  //     },
+  //     { $set: { "horarios.$.datos.$[inner].disponible": false } },
+  //     { arrayFilters: [{ "inner.hora": hora }] },
+  //     (err, doc) => {
+  //       if (doc.nModified > 0) {
+  //         newCita.save(function(err, data) {
+  //           if (data) {
+  //             res.json({ confirmation: "success", data: data });
+  //           } else {
+  //             console.log("valio en segundo");
+  //             res.json({ confirmation: "fail" });
+  //           }
+  //         });
+  //       } else {
+  //         console.log("valio en primero");
+  //         res.json({ confirmation: "fail" });
+  //       }
+  //     }
+  //   );
+  // });
+  //
+  // app.post("/getAppointments", function(req, res) {
+  //   Cita.find(req.body, function(err, data) {
+  //     if (data) {
+  //       res.json({ confirmation: "success", data: data });
+  //     } else {
+  //       res.json({ confirmation: "fail" });
+  //     }
+  //   });
+  // });
+  app.use((err, req, res, next) => {
+    if (err.code === "INCORRECT_FILETYPE") {
+      res.status(422).json({ error: "Only beer_data/images are allowed" });
+      return;
+    }
+    if (err.code === "LIMIT_FILE_SIZE") {
+      res.status(422).json({ error: "Allow file size is 500KB" });
+      return;
+    }
   });
 
   app.use(function(req, res, next) {
