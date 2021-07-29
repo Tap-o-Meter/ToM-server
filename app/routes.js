@@ -158,6 +158,37 @@ module.exports = function(app, passport, io) {
       });
   });
 
+  app.post("/claim-benefit", function(req, res) {
+    const { cardId, benefit, lineId } = req.body;
+    Client.findOne({ cardId: cardId })
+      .then(data => {
+        if (data) {
+          switch (benefit) {
+            case "beers":
+              if (data.benefits.beers > 0) {
+                Line.findOne({ _id: lineId }).then(line => {
+                  const socket = io.sockets.connected[line.socketId];
+                  if (socket) socket.emit("claimBeer", data._id);
+                  else {
+                    const beers = data.benefits.beers;
+                    data.benefits.beers = beers - 1;
+                    data.markModified("benefits");
+                    data.save();
+                  }
+                });
+              }
+              res.json({ confirmation: "success", data });
+              break;
+            default:
+              break;
+          }
+        } else res.json({ confirmation: "fail" });
+      })
+      .catch(err => {
+        res.json({ confirmation: "FAIL" });
+      });
+  });
+
   app.post("/addSaleClient", function(req, res) {
     Client.findOne({ cardId: req.body.cardId })
       .then(data => {
@@ -260,7 +291,7 @@ module.exports = function(app, passport, io) {
               }
             });
           });
-        } else res.json({ confirmation: "fail" });
+        } else res.json({ confirmation: "success", data: [] });
       })
       .catch(err => res.json({ confirmation: "FAIL" }));
   });
@@ -326,7 +357,8 @@ module.exports = function(app, passport, io) {
         data.idKeg = "";
         data.markModified("idKeg");
         data.save();
-        io.sockets.connected[data.socketId].emit("disconnectedLine");
+        const socket = io.sockets.connected[data.socketId];
+        if (socket) socket.emit("disconnectedLine");
         res.json({ confirmation: "success" });
       } else {
         res.json({ confirmation: "fail" });
@@ -431,6 +463,7 @@ module.exports = function(app, passport, io) {
             line.idKeg = req.body.newKeg;
             line.markModified("idKeg");
             line.save();
+            //const socket = io.sockets.connected[line.socketId];
             io.emit("changeLine", { data: line });
             res.json({ confirmation: "success", data: line });
           } else res.json({ confirmation: "fail" });
@@ -439,13 +472,40 @@ module.exports = function(app, passport, io) {
     });
   });
 
+  app.post("/keg_sales", function(req, res) {
+    Sale.find({ kegId: req.body.kegId }, (err, data) => {
+      if (err) {
+        res.json({ confirmation: "fail" });
+      } else {
+        var promises = data.map(async function(sale) {
+          const keg = await Keg.findOne({ _id: sale.kegId }).exec();
+          const beer = await Beer.findOne({ _id: keg.beerId }).exec();
+          return { ...sale._doc, beerName: beer.name };
+        });
+
+        Promise.all(promises)
+          .then(function(results) {
+            console.log("se armo");
+            res.json({ confirmation: "success", data: results });
+          })
+          .catch(err => console.log(err.message));
+      }
+    });
+  });
+
   app.post("/worker_sales", function(req, res) {
     const fullDate = new Date();
+    const salesPeriod =
+      req.body.period > -1
+        ? new Date(fullDate.getFullYear(), req.body.period, 1)
+        : new Date(fullDate.getFullYear(), fullDate.getMonth(), 1);
+    const lastDay = new Date(
+      fullDate.getFullYear(),
+      salesPeriod.getMonth() + 1,
+      0
+    );
     Sale.find(
-      {
-        workerId: req.body.id,
-        date: { $gte: new Date(fullDate.getFullYear(), fullDate.getMonth(), 1) }
-      },
+      { workerId: req.body.id, date: { $gte: salesPeriod, $lt: lastDay } },
       (err, data) => {
         if (err) {
           res.json({ confirmation: "fail" });

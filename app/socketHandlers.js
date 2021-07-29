@@ -3,6 +3,7 @@ var Line = require("./models/Line");
 var Worker = require("./models/worker");
 var Keg = require("../app/models/keg");
 var Beer = require("../app/models/beer");
+var Sale = require("../app/models/sale");
 const Client = require("./models/Client.js");
 var fs = require("fs");
 
@@ -36,6 +37,53 @@ module.exports = function(io, lineList) {
       });
     });
 
+    socket.on("sale_complete", msg => {
+      var ObjectId = mongoose.Types.ObjectId;
+      var newSale = new Sale();
+      newSale._id = new ObjectId().toString();
+      newSale.date = new Date();
+      msg.clientId ? (newSale.clientId = msg.clientId) : null;
+      Object.assign(newSale, msg);
+      Keg.findOne({ _id: msg.kegId }, (err, data) => {
+        if (data) {
+          console.log(data.available - msg.qty);
+          data.available = data.available - msg.qty;
+          switch (msg.concept) {
+            case "TASTER":
+              data.taster = data.taster + 1;
+              break;
+            case "PINT":
+              data.soldPints = data.soldPints + 1;
+              break;
+            case "GROWLER":
+              data.growlers.push({ qty: newSale.qty });
+              break;
+            case "MERMA":
+              data.merma += newSale.qty;
+              break;
+            default:
+          }
+          data.markModified("available");
+          data.save();
+          newSale.save((err, doc) => {
+            if (msg.clientId) {
+              Client.findOne({ _id: msg.clientId }, (err, client) => {
+                if (client) {
+                  client.beersDrinked++;
+                  client.markModified("beersDrinked");
+                  client.save();
+                }
+              });
+            }
+            if (doc) {
+              io.emit("sale-commited", { data, doc });
+              //res.json({ confirmation: "success", data: doc });
+            }
+          });
+        }
+      });
+    });
+
     socket.on("getClient", msg => {
       Client.findOne({ cardId: msg.cardId }, (err, data) => {
         if (data) {
@@ -62,6 +110,34 @@ module.exports = function(io, lineList) {
         .catch(err => console.log(err.message));
     });
 
+    socket.on("redeemBeer", msg => {
+      console.log("llegó a evento");
+      Client.findOne({ _id: msg.clientId }).then(client => {
+        const beers = client.benefits.beers;
+        client.benefits.beers = beers - 1;
+        client.markModified("benefits");
+        client.save();
+        console.log("en teoría guardó consumo");
+        var ObjectId = mongoose.Types.ObjectId;
+        var newSale = new Sale();
+        newSale._id = new ObjectId().toString();
+        newSale.date = new Date();
+        newSale.workerId = "N/A";
+        newSale.concept = "PINT";
+        newSale.qty = ".473";
+        Object.assign(newSale, msg);
+        Keg.findOne({ _id: msg.kegId }, (err, data) => {
+          if (data) {
+            data.available = data.available - msg.qty;
+            data.soldPints = data.soldPints + 1;
+            data.markModified("available");
+            data.save();
+            newSale.save((err, doc) => {});
+          }
+        });
+      });
+    });
+
     socket.on("client connected", () => {
       Keg.find({ status: { $ne: "EMPTY" } }, function(err, data) {
         if (data) {
@@ -79,7 +155,7 @@ module.exports = function(io, lineList) {
                     err,
                     emergencyDoc
                   ) {
-                    const emergencyCard = JSON.parse(jsonDoc);
+                    const emergencyCard = JSON.parse(emergencyDoc);
                     socket.emit("Linelist", {
                       connectedLines: lineList,
                       data,
@@ -108,13 +184,22 @@ module.exports = function(io, lineList) {
               if (keg) {
                 Beer.findOne({ _id: keg.beerId }, function(err, beer) {
                   if (beer) {
-                    socket.emit("device info", {
-                      ...data._doc,
-                      name: beer.name,
-                      style: beer.style,
-                      abv: keg.abv,
-                      ibu: keg.ibu
-                    });
+                    const folder = "/home/pi/Documents/Beer_control/data";
+                    fs.readFile(
+                      folder + "/.emergencyCard.json",
+                      "utf8",
+                      function(err, emergencyDoc) {
+                        const emergencyCard = JSON.parse(emergencyDoc);
+                        socket.emit("device info", {
+                          ...data._doc,
+                          name: beer.name,
+                          style: beer.style,
+                          abv: keg.abv,
+                          ibu: keg.ibu,
+                          emergencyCard: emergencyCard.cardId
+                        });
+                      }
+                    );
                   }
                 });
               } else {
