@@ -5,7 +5,7 @@
 var express = require("express");
 var app = express();
 var http = require("http").Server(app);
-var io = require("socket.io").listen(http);
+var io = require("socket.io")(http);
 var mongoose = require("mongoose");
 var passport = require("passport");
 var bodyParser = require("body-parser");
@@ -21,6 +21,8 @@ const CONNECTION_URI =
 //var ipaddress = process.env.IP || process.env.OPENSHIFT_NODEJS_IP || "0.0.0.0";
 var port = process.env.PORT || 3000;
 const lineList = [];
+var servingList = [];
+const workerSockets = [];
 // configuration ===============================================================
 mongoose.connect(CONNECTION_URI, {
   useNewUrlParser: true,
@@ -86,9 +88,21 @@ app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(passport.initialize());
 
+// Cloud connection ============================================================
+const ioClient = require("socket.io-client").connect(
+  "https://chikilla-real-time-taps.herokuapp.com/"
+  //"http://192.168.0.5:3000/"
+);
+
 // routes ======================================================================
 require("./app/routes.js")(app, passport, io); // load our routes and pass in our app and fully configured passport
-require("./app/socketHandlers.js")(io, lineList);
+require("./app/socketHandlers.js")(
+  io,
+  lineList,
+  servingList,
+  workerSockets,
+  ioClient
+);
 // launch ======================================================================
 http.listen(process.env.PORT || 3000, function() {
   console.log(
@@ -97,9 +111,5 @@ http.listen(process.env.PORT || 3000, function() {
     app.settings.env
   );
 });
-const ioClient = require("socket.io-client").connect(
-  "https://chikilla-real-time-taps.herokuapp.com/"
-);
-ioClient.on("chat message", msg => console.info(msg));
 
 module.exports = app;

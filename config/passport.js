@@ -2,6 +2,9 @@
 
 // load all the things we need
 var LocalStrategy = require("passport-local").Strategy;
+const JwtStrategy = require("passport-jwt").Strategy;
+
+const ExtractJWT = require("passport-jwt").ExtractJwt;
 
 // load up the user model
 var User = require("../app/models/user");
@@ -105,7 +108,6 @@ module.exports = function(passport) {
               newUser.password = newUser.generateHash(password);
               newUser.name = req.body.name;
               newUser.type = req.body.type;
-              //newUser.type = req.body.type;
 
               // save the user
               newUser.save(function(err) {

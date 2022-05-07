@@ -1,19 +1,22 @@
 // app/routes.js
+const fs = require("fs");
+const path = require("path");
+const multer = require("multer");
 var mongoose = require("mongoose");
-var User = require("../app/models/user");
-var Worker = require("../app/models/worker");
+const config = require("../config");
 var Keg = require("../app/models/keg");
+const cloudinary = require("cloudinary");
+var User = require("../app/models/user");
 var Beer = require("../app/models/beer");
-var Stock = require("../app/models/stock");
 var Sale = require("../app/models/sale");
 var Line = require("../app/models/Line");
-var Client = require("../app/models/Client");
-const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
 const { exec } = require("child_process");
-const config = require("../config");
+var Stock = require("../app/models/stock");
+var Worker = require("../app/models/worker");
+var Client = require("../app/models/Client");
+const cloudinaryStorage = require("multer-storage-cloudinary");
 
+const { cloud_name, api_key, api_secret } = config;
 const fileFilter = (req, file, cb) => {
   const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
   if (!allowedTypes.includes(file.mimetype)) {
@@ -23,6 +26,18 @@ const fileFilter = (req, file, cb) => {
   }
   cb(null, true);
 };
+
+cloudinary.config({ cloud_name, api_key, api_secret });
+
+const cloudinary_Storage = cloudinaryStorage({
+  cloudinary: cloudinary,
+  folder: "Chikilla",
+  allowedFormats: ["jpg", "png"]
+});
+const parser = multer({
+  storage: cloudinary_Storage,
+  limits: { fieldSize: 25 * 1024 * 1024 }
+});
 
 var storage = multer.diskStorage({
   destination: function(req, file, cb) {
@@ -54,12 +69,38 @@ module.exports = function(app, passport, io) {
     res.render("index.ejs"); // load the index.ejs file
   });
 
+  function fileUpload(req, res, next) {
+    parser.single("file")(req, res, next);
+    upload.array("file")(req, res, () => null);
+  }
+
   app.post("/login", function(req, res, next) {
     passport.authenticate("local-login", function(err, user, info) {
       if (!user) {
         return res.json({ confirmation: "fail" });
       } else {
-        return res.json({ confirmation: "success", data: user });
+        // Keg.find({ status: "CONNECTED" }, function(err, kegs) {
+        //   if (kegs) {
+        //     Beer.find({}, function(err, beers) {
+        //       if (beers) {
+        //         Line.find({})
+        //           .sort({ noLinea: "asc" })
+        //           .exec()
+        //           .then(lines => {
+        //             console.log(JSON.stringify({}));
+        //             return res.json({
+        //               confirmation: "success",
+        //               data: { user, kegs, lines, beers }
+        //             });
+        //           });
+        //       }
+        //     });
+        //   }
+        // });
+        return res.json({
+          confirmation: "success",
+          data: { ...user }
+        });
       }
     })(req, res, next);
   });
@@ -86,7 +127,7 @@ module.exports = function(app, passport, io) {
     var ObjectId = mongoose.Types.ObjectId;
     var newWorker = new Worker();
     newWorker._id = new ObjectId().toString();
-    newWorker.foto = req.file ? req.file.filename : null;
+    newWorker.foto = req.file ? req.files[0].filename : null;
     Object.assign(newWorker, req.body);
     Worker.findOne({ cardId: req.body.cardId })
       .then(data => {
@@ -224,7 +265,7 @@ module.exports = function(app, passport, io) {
           data.nombre = req.body.nombre;
           data.apellidos = req.body.apellidos;
           data.cardId = req.body.cardId;
-          data.foto = req.file ? req.file.filename : data.foto;
+          data.foto = req.file ? req.files[0].filename : data.foto;
           data.markModified("cardId");
           data.save();
           res.json({ confirmation: "success", data });
@@ -315,7 +356,7 @@ module.exports = function(app, passport, io) {
     });
   });
 
-  app.post("/editPlaceInfo", upload.single("file"), function(req, res) {
+  app.post("/editPlaceInfo", fileUpload, function(req, res) {
     const path = "/home/pi/Documents/Beer_control/data";
     fs.writeFile(
       path + "/local.json",
@@ -328,7 +369,7 @@ module.exports = function(app, passport, io) {
     );
   });
 
-  app.post("/addEmergencyCard", upload.single("file"), function(req, res) {
+  app.post("/addEmergencyCard", function(req, res) {
     const path = "/home/pi/Documents/Beer_control/data";
     fs.writeFile(
       path + "/.emergencyCard.json",
@@ -411,6 +452,36 @@ module.exports = function(app, passport, io) {
           }
         });
       } else res.json({ confirmation: "fail" });
+    });
+  });
+
+  ////////////////////////////////////////////////////////////////////
+  //                                                                //
+  //     Remember Asshole the CONCEPT is a INT those are in the     //
+  //     screen.h in the ARDUINO CODE                               //
+  //                                                                //
+  ////////////////////////////////////////////////////////////////////
+
+  app.post("/remote-sale", function(req, res) {
+    const { cardId, lineId, concept } = req.body;
+    Worker.findOne({ cardId }, (err, data) => {
+      if (data) {
+        // ======================== Here We must use some sort of conditional to watch the state of the line ========================
+        if (true) {
+          Line.findOne({ _id: lineId }, (err, line) => {
+            const socket = io.sockets.connected[line.socketId];
+            const arduinoConcept = config.options[concept];
+            if (socket) {
+              socket.emit("remoteSell", {
+                confirmation: "success",
+                data,
+                concept: arduinoConcept
+              });
+              res.json({ confirmation: "success" });
+            } else res.json({ confirmation: "LL not connected" });
+          });
+        } else res.json({ confirmation: "No Staff nor beers" });
+      } else res.json({ confirmation: "No Worker Exist" });
     });
   });
 
@@ -574,8 +645,8 @@ module.exports = function(app, passport, io) {
     });
   });
 
-  app.post("/upload", upload.single("file"), (req, res) => {
-    res.json({ file: req.file });
+  app.post("/upload", fileUpload, (req, res, next) => {
+    res.json({ local: req.files[0].filename, cloud: req.file.secure_url });
   });
 
   app.post("/addKeg", function(req, res) {
@@ -585,7 +656,7 @@ module.exports = function(app, passport, io) {
       const newKeg = new Keg();
       newKeg._id = new ObjectId().toString();
       newKeg.available = req.body.capacity;
-      // newKeg.image = req.file ? req.file.filename : null;
+      // newKeg.image = req.file ? req.files[0].filename : null;
       Object.assign(newKeg, req.body);
       newKeg.save(function(err, doc) {
         responseFlag++;
@@ -602,17 +673,18 @@ module.exports = function(app, passport, io) {
   });
   ////////////////////////////////////////////////////////////////////////
   app.post("/addStock", upload.single("file"), function(req, res) {
+    // local: req.files[0].filename, cloud: req.file.secure_url
     var ObjectId = mongoose.Types.ObjectId;
     var newStock = new Stock();
     newStock._id = new ObjectId().toString();
-    newStock.image = req.file ? req.file.filename : null;
+    newStock.image = req.file ? req.files[0].filename : null;
     Object.assign(newStock, req.body);
     newStock.save(function(err, doc) {
       if (doc) {
         res.json({
           confirmation: "success",
           data: newStock
-          // file: req.file.filename,
+          // file: req.files[0].filename,
           // path: path.dirname(require.main.filename)
         });
       } else {
@@ -655,6 +727,7 @@ module.exports = function(app, passport, io) {
       res.json({ confirmation: "success" });
     });
   });
+
   app.post("/add_inventory", function(req, res) {
     const items = req.body.items;
     items.forEach(item => {
@@ -682,22 +755,33 @@ module.exports = function(app, passport, io) {
     });
   });
 
-  app.post("/addBeer", upload.single("file"), function(req, res) {
+  app.post("/addBeer", fileUpload, function(req, res) {
+    // local: req.files[0].filename, cloud: req.file.secure_url
+    console.warn(req.body);
     var ObjectId = mongoose.Types.ObjectId;
     var newBeer = new Beer();
     newBeer._id = new ObjectId().toString();
-    newBeer.image = req.file ? req.file.filename : null;
-    Object.assign(newBeer, req.body);
+    newBeer.image = req.file ? req.files[0].filename : null;
+    newBeer.cloudImage = req.file ? req.file.secure_url : null;
+    newBeer.srm = req.body.srm[0];
+    newBeer.ibu = req.body.ibu[0];
+    newBeer.abv = req.body.abv[0];
+    newBeer.name = req.body.name[0];
+    newBeer.brand = req.body.brand[0];
+    newBeer.style = req.body.style[0];
+    newBeer.type = req.body.type[0];
+    newBeer.description = req.body.description[0];
+
     newBeer.save(function(err, doc) {
       if (doc) {
         res.json({ confirmation: "success", data: doc });
       } else {
-        res.json({ confirmation: "fail" });
+        res.json({ confirmation: "fail", err });
       }
     });
   });
 
-  app.post("/editBeer", upload.single("file"), function(req, res) {
+  app.post("/editBeer", fileUpload, function(req, res) {
     Beer.findOne({ _id: req.body.id }).then(data => {
       if (data) {
         if (req.file && data.image) {
@@ -712,7 +796,8 @@ module.exports = function(app, passport, io) {
         data.ibu = req.body.ibu;
         data.description = req.body.description;
         data.srm = req.body.srm;
-        data.image = req.file ? req.file.filename : data.image;
+        data.image = req.file ? req.files[0].filename : data.image;
+        data.cloudImage = req.file ? req.file.secure_url : data.cloudImage;
         data.markModified("name");
         data.save();
         res.json({ confirmation: "success", data });
