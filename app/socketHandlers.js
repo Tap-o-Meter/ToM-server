@@ -333,6 +333,10 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
       });
     });
 
+    socket.on("desk_manager_connected", () => {
+      socket.emit("connectedLines", { connectedLines: lineList });
+    });
+
     socket.on("worker connected", () => {
       addWorkerSocket("5eb7698b423ce36b02c7ab54", socket.id);
       // addWorkerSocket(msg.id, socket.id);

@@ -10,7 +10,7 @@ var beerSchema = mongoose.Schema({
   type: String,
   abv: Number,
   ibu: Number,
-  description: String,
+  description: { type: String, default: "" },
   srm: Number
 });
 

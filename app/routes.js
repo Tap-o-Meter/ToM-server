@@ -59,12 +59,10 @@ var storage = multer.diskStorage({
 var upload = multer({
   storage: storage,
   fileFilter,
-  limits: {
-    fileSize: 1000000
-  }
+  limits: { fileSize: 1000000 }
 });
 
-module.exports = function(app, passport, io) {
+module.exports = function(app, io) {
   app.get("/", function(req, res) {
     res.render("index.ejs"); // load the index.ejs file
   });
@@ -73,48 +71,6 @@ module.exports = function(app, passport, io) {
     parser.single("file")(req, res, next);
     upload.array("file")(req, res, () => null);
   }
-
-  app.post("/login", function(req, res, next) {
-    passport.authenticate("local-login", function(err, user, info) {
-      if (!user) {
-        return res.json({ confirmation: "fail" });
-      } else {
-        // Keg.find({ status: "CONNECTED" }, function(err, kegs) {
-        //   if (kegs) {
-        //     Beer.find({}, function(err, beers) {
-        //       if (beers) {
-        //         Line.find({})
-        //           .sort({ noLinea: "asc" })
-        //           .exec()
-        //           .then(lines => {
-        //             console.log(JSON.stringify({}));
-        //             return res.json({
-        //               confirmation: "success",
-        //               data: { user, kegs, lines, beers }
-        //             });
-        //           });
-        //       }
-        //     });
-        //   }
-        // });
-        return res.json({
-          confirmation: "success",
-          data: { ...user }
-        });
-      }
-    })(req, res, next);
-  });
-
-  // process the signup form
-  app.post("/signup", function(req, res, next) {
-    passport.authenticate("local-signup", function(err, user, info) {
-      if (!user) {
-        return res.json({ confirmation: "fail" });
-      } else {
-        return res.json({ confirmation: "success", data: user });
-      }
-    })(req, res, next);
-  });
 
   app.get("/getImage/:name", function(req, res) {
     const file =
@@ -127,7 +83,7 @@ module.exports = function(app, passport, io) {
     var ObjectId = mongoose.Types.ObjectId;
     var newWorker = new Worker();
     newWorker._id = new ObjectId().toString();
-    newWorker.foto = req.file ? req.files[0].filename : null;
+    newWorker.foto = req.file ? req.file.filename : null;
     Object.assign(newWorker, req.body);
     Worker.findOne({ cardId: req.body.cardId })
       .then(data => {
@@ -356,7 +312,17 @@ module.exports = function(app, passport, io) {
     });
   });
 
-  app.post("/editPlaceInfo", fileUpload, function(req, res) {
+  app.post("/getLine", function(req, res) {
+    Line.findOne({ _id: req.body.lineId }, function(err, data) {
+      if (data) {
+        res.json({ confirmation: "success", data: data });
+      } else {
+        res.json({ confirmation: "fail" });
+      }
+    });
+  });
+
+  app.post("/editPlaceInfo", upload.single("file"), function(req, res) {
     const path = "/home/pi/Documents/Beer_control/data";
     fs.writeFile(
       path + "/local.json",
@@ -404,6 +370,17 @@ module.exports = function(app, passport, io) {
       } else {
         res.json({ confirmation: "fail" });
       }
+    });
+  });
+
+  app.post("/deleteKeg", function(req, res) {
+    Keg.findOne({ _id: req.body.id }, (err, keg) => {
+      if (keg) {
+        keg.status = "EMPTY";
+        keg.markModified("status");
+        keg.save();
+        res.json({ confirmation: "success" });
+      } else res.json({ confirmation: "fail" });
     });
   });
 
@@ -487,11 +464,18 @@ module.exports = function(app, passport, io) {
 
   app.get("/sales/:from/:to", function(req, res) {
     const fullDate = new Date();
+    var lastDay;
+    if (req.params.to != null)
+      lastDay = new Date(fullDate.getFullYear(), req.params.to, 1);
+    else
+      lastDay = new Date(fullDate.getFullYear(), salesPeriod.getMonth() + 1, 0);
+
+    //  date: { $gte: salesPeriod, $lt: lastDay } },
     Sale.find(
       {
         date: {
           $gte: new Date(fullDate.getFullYear(), req.params.from, 1),
-          $lt: new Date(fullDate.getFullYear(), req.params.to, 1)
+          $lt: lastDay
         }
       },
       (err, data) => {
@@ -677,7 +661,7 @@ module.exports = function(app, passport, io) {
     var ObjectId = mongoose.Types.ObjectId;
     var newStock = new Stock();
     newStock._id = new ObjectId().toString();
-    newStock.image = req.file ? req.files[0].filename : null;
+    newStock.image = req.file ? req.file.filename : null;
     Object.assign(newStock, req.body);
     newStock.save(function(err, doc) {
       if (doc) {
@@ -758,6 +742,7 @@ module.exports = function(app, passport, io) {
   app.post("/addBeer", fileUpload, function(req, res) {
     // local: req.files[0].filename, cloud: req.file.secure_url
     console.warn(req.body);
+
     var ObjectId = mongoose.Types.ObjectId;
     var newBeer = new Beer();
     newBeer._id = new ObjectId().toString();
@@ -768,13 +753,14 @@ module.exports = function(app, passport, io) {
     newBeer.abv = req.body.abv[0];
     newBeer.name = req.body.name[0];
     newBeer.brand = req.body.brand[0];
+
     newBeer.style = req.body.style[0];
     newBeer.type = req.body.type[0];
-    newBeer.description = req.body.description[0];
-
-    newBeer.save(function(err, doc) {
-      if (doc) {
-        res.json({ confirmation: "success", data: doc });
+    newBeer.description = req.body.description[0]; //////   --------------------------> description cambiar a description !!!!!!!!!!!!!
+    console.warn(req.body);
+    newBeer.save(function(err, data) {
+      if (data) {
+        res.json({ confirmation: "success", data: data });
       } else {
         res.json({ confirmation: "fail", err });
       }
@@ -782,20 +768,20 @@ module.exports = function(app, passport, io) {
   });
 
   app.post("/editBeer", fileUpload, function(req, res) {
-    Beer.findOne({ _id: req.body.id }).then(data => {
+    Beer.findOne({ _id: req.body.id[0] }).then(data => {
       if (data) {
         if (req.file && data.image) {
           const mainPath = path.dirname(require.main.filename) + "/images/";
           fs.unlink(mainPath + data.image, function(err) {});
         }
-        data.name = req.body.name;
-        data.brand = req.body.brand;
-        data.style = req.body.style;
-        data.type = req.body.type;
-        data.abv = req.body.abv;
-        data.ibu = req.body.ibu;
-        data.description = req.body.description;
-        data.srm = req.body.srm;
+        data.name = req.body.name[0];
+        data.brand = req.body.brand[0];
+        data.style = req.body.style[0];
+        data.type = req.body.type[0];
+        data.abv = req.body.abv[0];
+        data.ibu = req.body.ibu[0];
+        data.description = req.body.description[0]; //////   --------------------------> description cambiar a description !!!!!!!!!!!!!
+        data.srm = req.body.srm[0];
         data.image = req.file ? req.files[0].filename : data.image;
         data.cloudImage = req.file ? req.file.secure_url : data.cloudImage;
         data.markModified("name");
@@ -815,51 +801,79 @@ module.exports = function(app, passport, io) {
     });
   });
 
-  // app.post("/makeAppointment", function(req, res, next) {
-  //   const { fecha, idWorker, idPlace, idUser, hora } = req.body;
-  //   var newCita = new Cita();
-  //   var ObjectId = mongoose.Types.ObjectId;
-  //   newCita._id = new ObjectId().toString();
-  //   Object.assign(newCita, req.body);
-  //   Worker.updateOne(
-  //     {
-  //       _id: idWorker,
-  //       horarios: {
-  //         $elemMatch: {
-  //           fecha: fecha,
-  //           datos: { $elemMatch: { disponible: true } }
-  //         }
-  //       }
-  //     },
-  //     { $set: { "horarios.$.datos.$[inner].disponible": false } },
-  //     { arrayFilters: [{ "inner.hora": hora }] },
-  //     (err, doc) => {
-  //       if (doc.nModified > 0) {
-  //         newCita.save(function(err, data) {
-  //           if (data) {
-  //             res.json({ confirmation: "success", data: data });
-  //           } else {
-  //             console.log("valio en segundo");
-  //             res.json({ confirmation: "fail" });
-  //           }
-  //         });
-  //       } else {
-  //         console.log("valio en primero");
-  //         res.json({ confirmation: "fail" });
-  //       }
-  //     }
-  //   );
-  // });
-  //
-  // app.post("/getAppointments", function(req, res) {
-  //   Cita.find(req.body, function(err, data) {
-  //     if (data) {
-  //       res.json({ confirmation: "success", data: data });
-  //     } else {
-  //       res.json({ confirmation: "fail" });
-  //     }
-  //   });
-  // });
+  app.get("/getSummary", function(req, res) {
+    Keg.find({ status: { $ne: "EMPTY" } }, function(err, kegs) {
+      if (kegs) {
+        Beer.find({}, function(err, beers) {
+          if (beers) {
+            Line.find({})
+              .sort({ noLinea: "asc" })
+              .exec()
+              .then(lines => {
+                var placeInfo;
+                const folder = "/home/pi/Documents/Beer_control/data";
+                fs.readFile(folder + "/local.json", "utf8", function(
+                  err,
+                  jsonDoc
+                ) {
+                  placeInfo = JSON.parse(jsonDoc);
+                  fs.readFile(folder + "/.emergencyCard.json", "utf8", function(
+                    err,
+                    emergencyDoc
+                  ) {
+                    const emergencyCard = JSON.parse(emergencyDoc);
+
+                    const fullDate = new Date();
+
+                    const salesPeriod = new Date(
+                      fullDate.getFullYear(),
+                      fullDate.getMonth(),
+                      1
+                    );
+
+                    const lastDay = new Date(
+                      fullDate.getFullYear(),
+                      salesPeriod.getMonth() + 1,
+                      0
+                    );
+
+                    Sale.find(
+                      { date: { $gte: salesPeriod, $lt: lastDay } },
+                      (err, sales) => {
+                        if (sales) {
+                          Stock.find({}, function(err, stock) {
+                            if (stock) {
+                              Worker.find({}).then(workers => {
+                                if (workers)
+                                  res.json({
+                                    confirmation: "success",
+                                    data: {
+                                      kegs,
+                                      lines,
+                                      beers,
+                                      placeInfo,
+                                      emergencyCard,
+                                      sales,
+                                      stock,
+                                      workers
+                                    }
+                                  });
+                                else res.json({ confirmation: "fail" });
+                              });
+                            } else res.json({ confirmation: "fail" });
+                          });
+                        } else res.json({ confirmation: "fail" });
+                      }
+                    );
+                  });
+                });
+              });
+          } else res.json({ confirmation: "fail" });
+        });
+      } else res.json({ confirmation: "fail" });
+    });
+  });
+
   app.use((err, req, res, next) => {
     if (err.code === "INCORRECT_FILETYPE") {
       res.status(422).json({ error: "Only beer_data/images are allowed" });

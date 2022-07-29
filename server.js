@@ -7,7 +7,7 @@ var app = express();
 var http = require("http").Server(app);
 var io = require("socket.io")(http);
 var mongoose = require("mongoose");
-var passport = require("passport");
+// var passport = require("passport");
 var bodyParser = require("body-parser");
 var cors = require("cors");
 const Agenda = require("agenda");
@@ -79,14 +79,14 @@ app.engine("html", require("ejs").renderFile);
 app.use(express.static(__dirname + "public"));
 app.use(express.static("public"));
 
-require("./config/passport")(passport); // pass passport for configuration
+// require("./config/passport")(passport); // pass passport for configuration
 
 // set up our express application
 app.use(cors());
 app.options("*", cors());
 app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
 app.use(bodyParser.json({ limit: "50mb" }));
-app.use(passport.initialize());
+// app.use(passport.initialize());
 
 // Cloud connection ============================================================
 const ioClient = require("socket.io-client").connect(
@@ -95,7 +95,7 @@ const ioClient = require("socket.io-client").connect(
 );
 
 // routes ======================================================================
-require("./app/routes.js")(app, passport, io); // load our routes and pass in our app and fully configured passport
+require("./app/routes.js")(app, io);
 require("./app/socketHandlers.js")(
   io,
   lineList,
