@@ -7,9 +7,9 @@ const Client = require("./models/Client.js");
 const { Keg, Beer, Sale } = require("../app/models");
 
 module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
-  
   // Utility Functions
-  const findIndexByKeyValue = (list, key, value) => list.findIndex(item => item[key] === value);
+  const findIndexByKeyValue = (list, key, value) =>
+    list.findIndex((item) => item[key] === value);
   const readJSONFile = (path) => {
     return new Promise((resolve, reject) => {
       fs.readFile(path, "utf8", (err, data) => {
@@ -24,10 +24,11 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
   const findClientByCardId = (cardId) => Client.findOne({ cardId }).exec();
   const getKegs = () => Keg.find({ status: { $ne: "EMPTY" } }).exec();
   const getBeers = () => Beer.find({}).exec();
-  const getSortedLines = () => Line.find({}).sort({ noLinea: "asc" }).exec();
+  const getSortedLines = () => Line.find({}).sort({ noLinea: "asc" }).exec();\
+  
 
   // Socket Management Functions
-  const addLineToList = (id, socket) => { 
+  const addLineToList = (id, socket) => {
     let index = findIndexByKeyValue(lineList, "id", id);
 
     index === -1
@@ -44,9 +45,9 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
       return true;
     }
     return false;
-   };
+  };
 
-  const addWorkerSocket = (id, socket) => { 
+  const addWorkerSocket = (id, socket) => {
     let index = workerSockets.findIndex((worker) => worker._id === id);
     index === -1
       ? workerSockets.push({ id, socket })
@@ -117,17 +118,29 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
     });
   }
 
+  const authenticateUser = async (cardId) => {
+    const user = await User.findOne({ cardId: cardId });
+    return user ? true : false;
+  };
 
-   // Handle Socket Events
-   const handleChatMessage = (socket) => {
+  const getUserCredit = async (cardId) => {
+    const user = await User.findOne({ cardId: cardId });
+    return user ? user.credit : 0;
+  };
+
+  const deductUserCredit = async (cardId, amount) => {
+    await User.updateOne({ cardId: cardId }, { $inc: { credit: -amount } });
+  };
+
+  // Handle Socket Events
+  const handleChatMessage = (socket) => {
     socket.on("chat message", (msg) => {
       io.emit("chat message", msg);
     });
   };
 
-
   const handleWorkerEvents = (socket) => {
-    socket.on("getWorker", async (msg) => { 
+    socket.on("getWorker", async (msg) => {
       try {
         const worker = await findWorkerByCardId(msg.cardId);
         socket.emit(
@@ -404,11 +417,173 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
     });
   };
 
+  const handleLineEvents = (socket) => {
+    // Client requests to pour
+    socket.on("client_request_pour", async function(msg) {
+      try {
+        const { lineId, userId, requestedVolume } = msg;
+
+        // Authenticate user and check credit
+        const user = await User.findOne({ _id: userId }).exec();
+        if (!user || user.credit <= 0) {
+          socket.emit("error", "User authentication failed or insufficient credit");
+          return;
+        }
+
+        // Find the keg associated with the selected line
+        const line = await Line.findOne({ _id: lineId }).exec();
+        if (!line) {
+          socket.emit("error", "Invalid line selected");
+          return;
+        }
+
+        const keg = await Keg.findOne({ _id: line.idKeg }).exec();
+        if (!keg) {
+          socket.emit("error", "Keg not found for the selected line");
+          return;
+        }
+
+        // if (keg.available < requestedVolume) {
+        //   socket.emit("error", "Not enough beer available");
+        //   return;
+        // }
+
+        // Deduct the price for the requested volume from the user's credit
+        const beerPrice = await Beer.findOne({ _id: keg.beerId }).exec();
+        const cost = beerPrice.pricePerOZ * requestedVolume;
+        if (user.credit < cost) {
+          socket.emit("error", "Not enough credit");
+          return;
+        }
+
+        user.credit -= cost;
+        await user.save();
+
+        // Start pouring process
+        io.to(line.socketId).emit('start_pour', { volume: requestedVolume });
+
+        // Update keg's available volume (this should ideally be done after confirmation of pour completion)
+        keg.available -= requestedVolume;
+        await keg.save();
+        
+        // Optionally, emit a success message or other updates to the client
+        socket.emit('pour_started', { lineId, userId, requestedVolume });
+
+      } catch (error) {
+        console.error("Error handling client_request_pour:", error);
+        socket.emit("error", "Server error while processing the request.");
+      }
+    });
+
+    // ESP32 confirms it has started pouring
+    socket.on("confirm_pour", async function (msg) {
+      try {
+        // Validate the received message
+        if (!msg.lineId || !msg.userId || typeof msg.isAvailable === "undefined") {
+            console.error(`Incomplete confirmation message from ESP32`);
+            socket.emit("error", "Incomplete confirmation message.");
+            return;
+        }
+
+        // Check the availability status sent by the ESP32
+        if (!msg.isAvailable) {
+            console.error(`ESP32 reports that Line ${msg.lineId} is not available for pouring`);
+            socket.emit("error", "Line is not available.");
+            return;
+        }
+
+        // Log the confirmation
+        console.log(`Pouring started for user ${msg.userId} on line ${msg.lineId}`);
+
+        // Notify the user/display tablet that pouring is commencing
+        io.emit('pouring_commenced', { lineId: msg.lineId, userId: msg.userId })
+        //TODO: userSocketId
+        // io.to(userSocketId).emit('pouring_commenced', { lineId: msg.lineId, userId: msg.userId });  // userSocketId is the socket ID of the user's device or the display tablet
+      } catch (error) {
+        console.error("Error handling confirm_pour:", error);
+        socket.emit("error", "Server error while processing the confirmation.");
+      }
+    });
+    
+    // ESP32 or client requests to stop pouring
+    socket.on("stop_pour", async function (msg) {
+      try {
+        // Validate the received message
+        if (!msg.lineId || !msg.workerId || !msg.kegId || !msg.qty) {
+          console.error(`Incomplete stop message from Android tablet`);
+          socket.emit("error", "Incomplete stop message.");
+          return;
+        }
+
+        // Notify the ESP32 line to stop pouring
+        io.to(msg.lineId).emit('stop_pouring', { reason: "User initiated stop" });
+
+        // Log the stop action
+        console.log(`Pouring stopped by user ${msg.workerId} on line ${msg.lineId}`);
+
+        // Store the sale in the DB
+        const sale = new Sale({
+            workerId: msg.workerId,
+            kegId: msg.kegId,
+            concept: "Beer Sale",
+            qty: msg.qty,
+            date: new Date()
+        });
+
+        await sale.save();
+        console.log("Sale saved successfully");
+
+        // Optionally, notify the user/display tablet about the successful stop and sale
+        socket.emit('pouring_stopped', { lineId: msg.lineId, userId: msg.workerId });
+  
+      } 
+      catch (error) {
+        console.error("Error handling stop_pour:", error);
+        socket.emit("error", "Server error while processing the stop command.");
+      }
+    });
+
+    // ESP32 updates the server about the pour status
+    socket.on("update_status", function (msg) {
+      try {
+        const { userId, pouredVolume } = msg;
+
+        // Check again if user has enough credit
+        const remainingCredit = getUserCredit(userId) - pouredVolume;
+        if (remainingCredit <= 0) {
+          socket.emit("stop_pour", { userId });
+        }
+
+        // Maybe log or update some real-time monitoring UI
+        console.log(`User ${userId} has poured ${pouredVolume}ml`);
+      } catch (error) {
+        console.error("Error in update_status:", error);
+        socket.emit("error", "Internal server error");
+      }
+    });
+
+    // ESP32 signals it has finished pouring
+    socket.on("finished_pour", async function (msg) {
+      try {
+        const { userId, totalPouredVolume } = msg;
+
+        await deductUserCredit(userId, totalPouredVolume);
+
+        console.log(
+          `Pouring finished for user ${msg.userId}. Total volume: ${totalPouredVolume}ml`
+        );
+      } catch (error) {
+        console.error("Error in finished_pour:", error);
+        socket.emit("error", "Internal server error");
+      }
+    });
+  };
 
   // Main Connection Handler
   io.on("connection", function (socket) {
+    handleDataEvents(socket);
+    handleLineEvents(socket);
     handleChatMessage(socket);
     handleWorkerEvents(socket);
-    handleDataEvents(socket);
   });
 };

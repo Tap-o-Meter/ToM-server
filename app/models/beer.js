@@ -11,6 +11,7 @@ var beerSchema = mongoose.Schema({
   abv: Number,
   ibu: Number,
   description: { type: String, default: "" },
+  pricePerOZ: Number,
   srm: Number
 });
 

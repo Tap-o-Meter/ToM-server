@@ -2,7 +2,6 @@ var mongoose = require("mongoose");
 
 var workerSchema = mongoose.Schema({
   _id: String,
-  foto: { type: String, default: null },
   nombre: String,
   apellidos: String,
   cardId: String,
@@ -17,3 +16,5 @@ var workerSchema = mongoose.Schema({
 var WorkerModel = mongoose.model("Worker", workerSchema);
 
 module.exports = WorkerModel;
+
+
