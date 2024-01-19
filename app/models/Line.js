@@ -4,7 +4,8 @@ var lineSchema = mongoose.Schema({
   _id: String,
   socketId: String,
   idKeg: { type: String, default: "" },
-  noLinea: { type: Number }
+  noLinea: { type: Number },
+  virtual: { type: Boolean, default: false }
 });
 
 var LineModel = mongoose.model("Line", lineSchema);

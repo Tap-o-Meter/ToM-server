@@ -100,6 +100,7 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
       newSale.date = new Date();
       msg.clientId ? (newSale.clientId = msg.clientId) : null;
       Object.assign(newSale, msg);
+      if (msg.workerId.length > 0) console.warn(newSale);
       Keg.findOne({ _id: msg.kegId }, (err, data) => {
         if (data) {
           console.log(data.available - msg.qty);
@@ -115,7 +116,7 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
               data.growlers.push({ qty: newSale.qty });
               break;
             case "MERMA":
-              data.merma += newSale.qty;
+              data.merma = data.merma + parseFloat(newSale.qty);
               break;
             default:
           }
@@ -271,22 +272,48 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
       });
     });
 
-    socket.on("updateData", () => {
-      Keg.find({ status: "CONNECTED" }, function(err, kegs) {
-        if (kegs) {
-          Beer.find({}, function(err, beers) {
-            if (beers) {
-              Line.find({})
-                .sort({ noLinea: "asc" })
-                .exec()
-                .then(lines => {
-                  console.log(JSON.stringify({ kegs, lines, beers }));
-                  ioClient.emit("update data", { kegs, lines, beers });
-                });
-            }
-          });
-        }
-      });
+    // socket.on("updateData", () => {
+    //   Keg.find({ status: "CONNECTED" }, function(err, kegs) {
+    //     if (kegs) {
+    //       Beer.find({}, function(err, beers) {
+    //         if (beers) {
+    //           Line.find({})
+    //             .sort({ noLinea: "asc" })
+    //             .exec()
+    //             .then(lines => {
+    //               console.log(JSON.stringify({ kegs, lines, beers }));
+    //               ioClient.emit("update data", { kegs, lines, beers });
+    //             });
+    //         }
+    //       });
+    //     }
+    //   });
+    // });
+
+    socket.on("updateData", async () => {
+      try {
+        // Find all lines and sort them
+        const lines = await Line.find({}).sort({ noLinea: "asc" }).exec();
+    
+        // Extract idKeg from each line
+        const kegIds = lines.map(line => line.idKeg).filter(id => id);
+    
+        // Find all kegs that are currently connected to lines
+        const kegs = await Keg.find({ _id: { $in: kegIds } }).exec();
+    
+        // Extract beerIds from the connected kegs
+        const beerIds = kegs.map(keg => keg.beerId);
+    
+        // Find all beers that are linked to the connected kegs
+        const beers = await Beer.find({ _id: { $in: beerIds } }).exec();
+    
+        // Emit the data to the client
+        ioClient.emit("update data", { kegs, lines, beers });
+      } catch (error) {
+        console.error("Error in updateData: ", error);
+        // Handle the error appropriately. Maybe emit an error event to the client.
+        ioClient.emit("error", "Failed to update data");
+      }
     });
 
     socket.on("client connected", () => {

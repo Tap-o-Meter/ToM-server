@@ -157,6 +157,9 @@ module.exports = function(app, io) {
 
   app.post("/claim-benefit", function(req, res) {
     const { cardId, benefit, lineId } = req.body;
+    console.warn("cardId: "+cardId);
+    console.warn("benefit: "+benefit);
+    console.warn("lineId: "+lineId);
     Client.findOne({ cardId: cardId })
       .then(data => {
         if (data) {
@@ -164,7 +167,12 @@ module.exports = function(app, io) {
             case "beers":
               if (data.benefits.beers > 0) {
                 Line.findOne({ _id: lineId }).then(line => {
+                  console.warn("Sí llegó y encontró");
                   const socket = io.sockets.connected[line.socketId];
+                  console.warn(io.sockets.connected);
+                  console.warn("éste es el socket "+socket);
+                  console.warn("y éste es el socketId "+line.socketId);
+
                   if (socket) socket.emit("claimBeer", data._id);
                   else {
                     const beers = data.benefits.beers;
