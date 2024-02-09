@@ -24,8 +24,7 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
   const findClientByCardId = (cardId) => Client.findOne({ cardId }).exec();
   const getKegs = () => Keg.find({ status: { $ne: "EMPTY" } }).exec();
   const getBeers = () => Beer.find({}).exec();
-  const getSortedLines = () => Line.find({}).sort({ noLinea: "asc" }).exec();\
-  
+  const getSortedLines = () => Line.find({}).sort({ noLinea: "asc" }).exec();
 
   // Socket Management Functions
   const addLineToList = (id, socket) => {
@@ -87,7 +86,7 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
   };
 
   const isLineServing = (lineId) => {
-    const index = workerSockets.findIndex((line) => line.socket === socketId);
+    const index = servingList.findIndex((line) => line._id === lineId);
     return index !== -1;
   };
 
@@ -123,13 +122,40 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
     return user ? true : false;
   };
 
-  const getUserCredit = async (cardId) => {
-    const user = await User.findOne({ cardId: cardId });
+  const getUserCredit = async (id) => {
+    const user = await User.findOne({ _id: id });
     return user ? user.credit : 0;
   };
 
-  const deductUserCredit = async (cardId, amount) => {
-    await User.updateOne({ cardId: cardId }, { $inc: { credit: -amount } });
+  const deductUserCredit = async (id, concept) => {
+    console.warn("deducting credit");
+    const worker = await Worker.findOne({ _id: id });
+    console.warn("Got worker");
+    console.warn(worker.beers);
+
+    if (worker) {
+      if (!worker.isStaff) {
+        const { pint, taster, flight } = worker.beers;
+        switch (concept) {
+          case "PINT":
+            if (pint > 0) worker.beers.pint--;
+            else io.emit("wtf", { worker, concept });
+            break;
+          case "TASTER":
+            if (taster > 0) worker.beers.taster--;
+            else io.emit("wtf", { worker, concept });
+            break;
+          case "FLIGHT":
+            if (flight > 0) worker.beers.flight--;
+            else io.emit("wtf", { worker, concept });
+            break;
+          default:
+            break;
+        }
+        worker.markModified("beers");
+        worker.save();
+      }
+    }
   };
 
   // Handle Socket Events
@@ -142,7 +168,25 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
   const handleWorkerEvents = (socket) => {
     socket.on("getWorker", async (msg) => {
       try {
-        const worker = await findWorkerByCardId(msg.cardId);
+        let worker = await findWorkerByCardId(msg.cardId);
+        if (!worker) {
+          console.warn("No worker found");
+          const client = await findClientByCardId(msg.cardId);
+          if (client) {
+            // cliento to worker conversion
+            worker = {
+              _id: client._id,
+              nombre: client.name,
+              apellidos: client.lastName,
+              cardId: client.cardId,
+              credit: 0,
+              vip: true,
+              beers: { pint: client.benefits.beers, taster: 0, flight: 0 },
+            };
+            console.warn("Client found: ", client);
+          } else console.warn("No client found");
+        }
+
         socket.emit(
           "validated user",
           worker
@@ -418,17 +462,25 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
   };
 
   const handleLineEvents = (socket) => {
+    // Client_request_pour  ====> confirm_pour
+    //                        ==> reject_pour
+
+    socket.on("line_not_available", async function (msg) {
+      io.emit("line_not_available", msg);
+    });
+
     // Client requests to pour
-    socket.on("client_request_pour", async function(msg) {
+    socket.on("client_request_pour", async function (msg) {
       try {
-        const { lineId, userId, requestedVolume } = msg;
+        const { lineId, userId, requestedVolume, concept } = msg;
 
         // Authenticate user and check credit
-        const user = await User.findOne({ _id: userId }).exec();
-        if (!user || user.credit <= 0) {
-          socket.emit("error", "User authentication failed or insufficient credit");
-          return;
-        }
+        const user = await Worker.findOne({ _id: userId }).exec();
+
+        // if (!user || user.credit <= 0) {
+        //   socket.emit("error", "User authentication failed or insufficient credit");
+        //   return;
+        // }
 
         // Find the keg associated with the selected line
         const line = await Line.findOne({ _id: lineId }).exec();
@@ -449,26 +501,53 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
         // }
 
         // Deduct the price for the requested volume from the user's credit
-        const beerPrice = await Beer.findOne({ _id: keg.beerId }).exec();
-        const cost = beerPrice.pricePerOZ * requestedVolume;
-        if (user.credit < cost) {
-          socket.emit("error", "Not enough credit");
+        // const beerPrice = await Beer.findOne({ _id: keg.beerId }).exec();
+        // const cost = beerPrice.pricePerOZ * requestedVolume;
+        // if (user.credit < cost) {
+        //   socket.emit("error", "Not enough credit");
+        //   return;
+        // }
+
+        // user.credit -= cost;
+        // await user.save();
+
+        // // check if line is not already pouring
+        // if (isLineServing(lineId)) {
+        //   socket.emit("line_busy", "Line is already pouring");
+        //   return;
+        // }
+
+        // add line to serving list
+        // addToServing({ lineId, userId, requestedVolume, concept }, socket.id);
+
+        // socket.emit("request_accepted", {
+        //   lineId,
+        //   userId,
+        //   requestedVolume,
+        //   concept,
+        // });
+
+        // // Check if the line is connected to the server
+        console.log(line.socketId);
+        console.log(io.sockets.connected[line.socketId]);
+
+        if (io.sockets.connected[line.socketId] === undefined) {
+          socket.emit("line_not_available", { id: lineId });
           return;
         }
 
-        user.credit -= cost;
-        await user.save();
-
-        // Start pouring process
-        io.to(line.socketId).emit('start_pour', { volume: requestedVolume });
+        io.to(line.socketId).emit("request_device", {
+          volume: requestedVolume,
+          userId,
+          concept,
+        });
 
         // Update keg's available volume (this should ideally be done after confirmation of pour completion)
-        keg.available -= requestedVolume;
-        await keg.save();
-        
-        // Optionally, emit a success message or other updates to the client
-        socket.emit('pour_started', { lineId, userId, requestedVolume });
+        // keg.available -= requestedVolume;
+        // await keg.save();
 
+        // Optionally, emit a success message or other updates to the client
+        // socket.emit('pour_started', { lineId, userId, requestedVolume });
       } catch (error) {
         console.error("Error handling client_request_pour:", error);
         socket.emit("error", "Server error while processing the request.");
@@ -476,68 +555,85 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
     });
 
     // ESP32 confirms it has started pouring
-    socket.on("confirm_pour", async function (msg) {
+    socket.on("confirm_order", async function (msg) {
       try {
         // Validate the received message
-        if (!msg.lineId || !msg.userId || typeof msg.isAvailable === "undefined") {
-            console.error(`Incomplete confirmation message from ESP32`);
-            socket.emit("error", "Incomplete confirmation message.");
-            return;
-        }
+        // if (
+        //   !msg.lineId ||
+        //   !msg.userId ||
+        //   typeof msg.isAvailable === "undefined"
+        // ) {
+        //   console.error(`Incomplete confirmation message from ESP32`);
+        //   socket.emit("error", "Incomplete confirmation message.");
+        //   return;
+        // }
 
-        // Check the availability status sent by the ESP32
-        if (!msg.isAvailable) {
-            console.error(`ESP32 reports that Line ${msg.lineId} is not available for pouring`);
-            socket.emit("error", "Line is not available.");
-            return;
-        }
+        // // Check the availability status sent by the ESP32
+        // if (!msg.isAvailable) {
+        //   console.error(
+        //     `ESP32 reports that Line ${msg.lineId} is not available for pouring`
+        //   );
+        //   socket.emit("error", "Line is not available.");
+        //   return;
+        // }
 
-        // Log the confirmation
-        console.log(`Pouring started for user ${msg.userId} on line ${msg.lineId}`);
+        // // Log the confirmation
+        // console.log(
+        //   `Pouring started for user ${msg.userId} on line ${msg.lineId}`
+        // );
 
-        // Notify the user/display tablet that pouring is commencing
-        io.emit('pouring_commenced', { lineId: msg.lineId, userId: msg.userId })
-        //TODO: userSocketId
-        // io.to(userSocketId).emit('pouring_commenced', { lineId: msg.lineId, userId: msg.userId });  // userSocketId is the socket ID of the user's device or the display tablet
+        // // Notify the user/display tablet that pouring is commencing
+        // io.emit("pouring_commenced", {
+        //   lineId: msg.lineId,
+        //   userId: msg.userId,
+        // });
+        // //TODO: userSocketId
+        // // io.to(userSocketId).emit('pouring_commenced', { lineId: msg.lineId, userId: msg.userId });  // userSocketId is the socket ID of the user's device or the display tablet
+
+        io.emit("confirm_order", msg);
       } catch (error) {
         console.error("Error handling confirm_pour:", error);
         socket.emit("error", "Server error while processing the confirmation.");
       }
     });
-    
+
     // ESP32 or client requests to stop pouring
-    socket.on("stop_pour", async function (msg) {
+    socket.on("client_stop", async function (msg) {
       try {
         // Validate the received message
-        if (!msg.lineId || !msg.workerId || !msg.kegId || !msg.qty) {
+        if (!msg.lineId /* || !msg.workerId */) {
           console.error(`Incomplete stop message from Android tablet`);
           socket.emit("error", "Incomplete stop message.");
           return;
         }
 
         // Notify the ESP32 line to stop pouring
-        io.to(msg.lineId).emit('stop_pouring', { reason: "User initiated stop" });
+        // io.to(msg.lineId).emit('stop_pouring', { reason: "User initiated stop" });
 
         // Log the stop action
-        console.log(`Pouring stopped by user ${msg.workerId} on line ${msg.lineId}`);
+        // console.log(`Pouring stopped by user ${msg.workerId} on line ${msg.lineId}`);
 
         // Store the sale in the DB
-        const sale = new Sale({
-            workerId: msg.workerId,
-            kegId: msg.kegId,
-            concept: "Beer Sale",
-            qty: msg.qty,
-            date: new Date()
-        });
+        // const sale = new Sale({
+        //     workerId: msg.workerId,
+        //     kegId: msg.kegId,
+        //     concept: "Beer Sale",
+        //     qty: msg.qty,
+        //     date: new Date()
+        // });
 
-        await sale.save();
-        console.log("Sale saved successfully");
+        // await sale.save();
+        // console.log("Sale saved successfully");
 
         // Optionally, notify the user/display tablet about the successful stop and sale
-        socket.emit('pouring_stopped', { lineId: msg.lineId, userId: msg.workerId });
-  
-      } 
-      catch (error) {
+
+        // get line info
+        const line = await Line.findOne({ _id: msg.lineId }).exec();
+
+        io.to(line.socketId).emit("stop_pour");
+
+        // socket.emit('stop_pour', { lineId: msg.lineId, userId: msg.workerId });
+      } catch (error) {
         console.error("Error handling stop_pour:", error);
         socket.emit("error", "Server error while processing the stop command.");
       }
@@ -546,16 +642,18 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
     // ESP32 updates the server about the pour status
     socket.on("update_status", function (msg) {
       try {
-        const { userId, pouredVolume } = msg;
+        const { lineId, pouredVolume } = msg;
 
         // Check again if user has enough credit
-        const remainingCredit = getUserCredit(userId) - pouredVolume;
+        const remainingCredit = 10; /* getUserCredit(userId) - pouredVolume; */
         if (remainingCredit <= 0) {
           socket.emit("stop_pour", { userId });
         }
 
         // Maybe log or update some real-time monitoring UI
-        console.log(`User ${userId} has poured ${pouredVolume}ml`);
+        console.log(`Line ${lineId} has poured ${pouredVolume}ml`);
+
+        io.emit("updated_pour_status", { pouredVolume, lineId });
       } catch (error) {
         console.error("Error in update_status:", error);
         socket.emit("error", "Internal server error");
@@ -565,13 +663,71 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
     // ESP32 signals it has finished pouring
     socket.on("finished_pour", async function (msg) {
       try {
-        const { userId, totalPouredVolume } = msg;
+        io.emit("finished_pour", msg);
 
-        await deductUserCredit(userId, totalPouredVolume);
+        var ObjectId = mongoose.Types.ObjectId;
+        var newSale = new Sale();
 
-        console.log(
-          `Pouring finished for user ${msg.userId}. Total volume: ${totalPouredVolume}ml`
-        );
+        newSale._id = new ObjectId().toString();
+        newSale.date = new Date();
+
+        msg.clientId ? (newSale.clientId = msg.clientId) : null;
+        newSale.qty = msg.totalPouredVolume;
+        Object.assign(newSale, msg);
+
+        await deductUserCredit(msg.workerId, msg.concept);
+
+
+        Keg.findOne({ _id: msg.kegId }, (err, data) => {
+          if (data) {
+            console.log(data.available - msg.qty);
+            data.available = data.available - msg.qty;
+            switch (msg.concept) {
+              case "TASTER":
+                data.taster = data.taster + 1;
+                break;
+              case "FLIGHT":
+                data.flight = data.flight + 1;
+                break;
+              case "PINT":
+                data.soldPints = data.soldPints + 1;
+                break;
+              case "GROWLER":
+                data.growlers.push({ qty: newSale.qty });
+                break;
+              case "MERMA":
+                data.merma += newSale.qty;
+                break;
+              default:
+            }
+            data.markModified("available");
+            data.save();
+            newSale.save((err, doc) => {
+              if (doc) {
+                io.emit("sale-commited", { data, doc });
+                //res.json({ confirmation: "success", data: doc });
+              }
+            });
+          }
+        });        
+
+        newSale.save((err, doc) => {
+          if (doc) {
+            io.emit("sale-commited", { doc });
+            //res.json({ confirmation: "success", data: doc });
+          }
+        });
+
+        // // Store the sale in the DB
+        // const sale = new Sale({
+        //     workerId: msg.workerId,
+        //     kegId: msg.kegId,
+        //     concept: msg.concept,
+        //     qty: msg.qty,
+        //     date: new Date()
+        // });
+
+
       } catch (error) {
         console.error("Error in finished_pour:", error);
         socket.emit("error", "Internal server error");
