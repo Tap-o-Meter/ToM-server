@@ -13,17 +13,22 @@ var Client = require("./app/models/Client");
 const config = require("./config");
 mongoose.Promise = require("bluebird");
 
-const CONNECTION_URI =
-  process.env.MONGODB_URI || "mongodb://0.0.0.0:27017/tapOmeter";
+const CONNECTION_URI = "mongodb://mongo:27017/tap-o-meter";
+console.warn("la mierda esra", process.env.MONGO_URI);
 var port = process.env.PORT || 3000;
 const lineList = [];
 var servingList = [];
 const workerSockets = [];
 
-mongoose.connect(CONNECTION_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-});
+
+setTimeout(() => {
+  mongoose.connect(CONNECTION_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+  })
+}, 10000); // Espera 10 segundos antes de intentar conectarse a MongoDB
+
+
 const clients = mongoose.connection.collection("clients");
 
 const agenda = new Agenda({ db: { address: CONNECTION_URI } });
@@ -33,7 +38,7 @@ agenda.define("weekly", async job => {
   await Client.update(
     { level: 1 },
     { $set: { benefits: config.benefits[0] } },
-    { multi: true }
+    { multi: true }   
   ).exec();
   await Client.update(
     { level: 4 },
