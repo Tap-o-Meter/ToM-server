@@ -32,38 +32,40 @@ cloudinary.config({ cloud_name, api_key, api_secret });
 const cloudinary_Storage = cloudinaryStorage({
   cloudinary: cloudinary,
   folder: "Chikilla",
-  allowedFormats: ["jpg", "png"]
+  allowedFormats: ["jpg", "png"],
 });
 const parser = multer({
   storage: cloudinary_Storage,
-  limits: { fieldSize: 25 * 1024 * 1024 }
+  limits: { fieldSize: 25 * 1024 * 1024 },
 });
 
 var storage = multer.diskStorage({
-  destination: function(req, file, cb) {
+  destination: function (req, file, cb) {
     const logoPath = "/home/pi/Documents/dist";
     const mainPath = path.dirname(require.main.filename) + "/images";
     const destination =
       req.route.path === "/editPlaceInfo" ? logoPath : mainPath;
     cb(null, destination);
   },
-  filename: function(req, file, cb) {
+  filename: function (req, file, cb) {
     const extensions = [".jpeg", ".jpg", ".png"];
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
-    const index = allowedTypes.findIndex(type => type.includes(file.mimetype));
+    const index = allowedTypes.findIndex((type) =>
+      type.includes(file.mimetype)
+    );
     const imageName = req.route.path === "/editPlaceInfo" ? "logo" : Date.now();
     cb(null, imageName + extensions[index]);
-  }
+  },
 });
 
 var upload = multer({
   storage: storage,
   fileFilter,
-  limits: { fileSize: 1000000 }
+  limits: { fileSize: 1000000 },
 });
 
-module.exports = function(app, io) {
-  app.get("/", function(req, res) {
+module.exports = function (app, io) {
+  app.get("/", function (req, res) {
     res.render("index.ejs"); // load the index.ejs file
   });
 
@@ -72,63 +74,63 @@ module.exports = function(app, io) {
     upload.array("file")(req, res, () => null);
   }
 
-  app.get("/getImage/:name", function(req, res) {
+  app.get("/getImage/:name", function (req, res) {
     const file =
       path.dirname(require.main.filename) + "/images/" + req.params.name;
     if (fs.existsSync(file)) res.sendFile(path.resolve(file));
     else res.status(422).json({ error: "There's no Image" });
   });
 
-  app.post("/addPersonal", upload.single("file"), function(req, res) {
+  app.post("/addPersonal", upload.single("file"), function (req, res) {
     var ObjectId = mongoose.Types.ObjectId;
     var newWorker = new Worker();
     newWorker._id = new ObjectId().toString();
     newWorker.foto = req.file ? req.file.filename : null;
     Object.assign(newWorker, req.body);
     Worker.findOne({ cardId: req.body.cardId })
-      .then(data => {
+      .then((data) => {
         if (data) res.json({ confirmation: "fail", message: "user exist" });
         else {
-          newWorker.save(function(err, doc) {
+          newWorker.save(function (err, doc) {
             if (doc) res.json({ confirmation: "success", data: newWorker });
             else res.json({ confirmation: "fail" });
           });
         }
       })
-      .catch(err => res.json({ confirmation: "FAIL" }));
+      .catch((err) => res.json({ confirmation: "FAIL" }));
   });
 
-  app.post("/addClient", function(req, res) {
+  app.post("/addClient", function (req, res) {
     var ObjectId = mongoose.Types.ObjectId;
     var newClient = new Client();
     newClient._id = new ObjectId().toString();
     newClient.clientSince = new Date();
     Object.assign(newClient, req.body);
     Client.findOne({ cardId: req.body.cardId })
-      .then(data => {
+      .then((data) => {
         if (data) res.json({ confirmation: "fail", message: "user exist" });
         else {
-          newClient.save(function(err, doc) {
+          newClient.save(function (err, doc) {
             if (doc) res.json({ confirmation: "success", data: newClient });
             else res.json({ confirmation: "fail" });
           });
         }
       })
-      .catch(err => res.json({ confirmation: "FAIL" }));
+      .catch((err) => res.json({ confirmation: "FAIL" }));
   });
 
-  app.get("/getClients", function(req, res) {
+  app.get("/getClients", function (req, res) {
     Client.find({})
-      .then(clients => {
+      .then((clients) => {
         if (clients) res.json({ confirmation: "success", data: clients });
         else res.json({ confirmation: "fail" });
       })
-      .catch(err => res.json({ confirmation: "FAIL" }));
+      .catch((err) => res.json({ confirmation: "FAIL" }));
   });
 
-  app.post("/editClient", function(req, res) {
+  app.post("/editClient", function (req, res) {
     Client.findOne({ _id: req.body.id })
-      .then(data => {
+      .then((data) => {
         if (data) {
           data.name = req.body.name;
           data.lastName = req.body.lastName;
@@ -138,40 +140,40 @@ module.exports = function(app, io) {
           res.json({ confirmation: "success", data });
         } else res.json({ confirmation: "fail" });
       })
-      .catch(err => {
+      .catch((err) => {
         res.json({ confirmation: "FAIL" });
       });
   });
 
-  app.post("/checkClient", function(req, res) {
+  app.post("/checkClient", function (req, res) {
     Client.findOne({ cardId: req.body.cardId })
-      .then(data => {
+      .then((data) => {
         if (data) {
           res.json({ confirmation: "success", data });
         } else res.json({ confirmation: "fail" });
       })
-      .catch(err => {
+      .catch((err) => {
         res.json({ confirmation: "FAIL" });
       });
   });
 
-  app.post("/claim-benefit", function(req, res) {
+  app.post("/claim-benefit", function (req, res) {
     const { cardId, benefit, lineId } = req.body;
-    console.warn("cardId: "+cardId);
-    console.warn("benefit: "+benefit);
-    console.warn("lineId: "+lineId);
+    console.warn("cardId: " + cardId);
+    console.warn("benefit: " + benefit);
+    console.warn("lineId: " + lineId);
     Client.findOne({ cardId: cardId })
-      .then(data => {
+      .then((data) => {
         if (data) {
           switch (benefit) {
             case "beers":
               if (data.benefits.beers > 0) {
-                Line.findOne({ _id: lineId }).then(line => {
+                Line.findOne({ _id: lineId }).then((line) => {
                   console.warn("Sí llegó y encontró");
                   const socket = io.sockets.connected[line.socketId];
                   console.warn(io.sockets.connected);
-                  console.warn("éste es el socket "+socket);
-                  console.warn("y éste es el socketId "+line.socketId);
+                  console.warn("éste es el socket " + socket);
+                  console.warn("y éste es el socketId " + line.socketId);
 
                   if (socket) socket.emit("claimBeer", data._id);
                   else {
@@ -189,14 +191,14 @@ module.exports = function(app, io) {
           }
         } else res.json({ confirmation: "fail" });
       })
-      .catch(err => {
+      .catch((err) => {
         res.json({ confirmation: "FAIL" });
       });
   });
 
-  app.post("/addSaleClient", function(req, res) {
+  app.post("/addSaleClient", function (req, res) {
     Client.findOne({ cardId: req.body.cardId })
-      .then(data => {
+      .then((data) => {
         if (data) {
           data.beersDrinked = data.beersDrinked.concat(req.body.beers);
           switch (data.beersDrinked) {
@@ -213,18 +215,18 @@ module.exports = function(app, io) {
           res.json({ confirmation: "success", data });
         } else res.json({ confirmation: "fail" });
       })
-      .catch(err => {
+      .catch((err) => {
         res.json({ confirmation: "FAIL" });
       });
   });
 
-  app.post("/editPersonal", upload.single("file"), function(req, res) {
+  app.post("/editPersonal", upload.single("file"), function (req, res) {
     Worker.findOne({ _id: req.body.id })
-      .then(data => {
+      .then((data) => {
         if (data) {
           if (req.file && data.foto) {
             const mainPath = path.dirname(require.main.filename) + "/images/";
-            fs.unlink(mainPath + data.foto, function(err) {});
+            fs.unlink(mainPath + data.foto, function (err) {});
           }
           data.nombre = req.body.nombre;
           data.apellidos = req.body.apellidos;
@@ -235,60 +237,60 @@ module.exports = function(app, io) {
           res.json({ confirmation: "success", data });
         } else res.json({ confirmation: "fail" });
       })
-      .catch(err => {
+      .catch((err) => {
         console.log(err);
         res.json({ confirmation: "FAIL" });
       });
   });
 
-  app.post("/deleteWorker", function(req, res) {
+  app.post("/deleteWorker", function (req, res) {
     Worker.remove({ _id: req.body.id })
-      .then(err => {
+      .then((err) => {
         if (err) res.json({ confirmation: "fail" });
         else res.json({ confirmation: "success" });
       })
-      .catch(err => res.json({ confirmation: "FAIL" }));
+      .catch((err) => res.json({ confirmation: "FAIL" }));
   });
 
-  app.get("/getWorkers", function(req, res) {
+  app.get("/getWorkers", function (req, res) {
     Worker.find({})
-      .then(data => {
+      .then((data) => {
         if (data) res.json({ confirmation: "success", data });
         else res.json({ confirmation: "fail" });
       })
-      .catch(err => res.json({ confirmation: "FAIL" }));
+      .catch((err) => res.json({ confirmation: "FAIL" }));
   });
 
-  app.get("/getBeerInfo/:idKeg", function(req, res) {
+  app.get("/getBeerInfo/:idKeg", function (req, res) {
     Keg.findOne({ _id: req.params.idKeg })
-      .then(keg => {
+      .then((keg) => {
         if (keg) {
           console.log(keg.beerId);
-          Beer.findOne({ _id: keg.beerId }).then(beer => {
+          Beer.findOne({ _id: keg.beerId }).then((beer) => {
             if (beer)
               res.json({ confirmation: "success", data: { keg, beer } });
             else res.json({ confirmation: "fail" });
           });
         } else res.json({ confirmation: "fail" });
       })
-      .catch(err => res.json({ confirmation: "FAIL" }));
+      .catch((err) => res.json({ confirmation: "FAIL" }));
   });
 
-  app.get("/client-purchase/:clientId", function(req, res) {
+  app.get("/client-purchase/:clientId", function (req, res) {
     const fullDate = new Date();
     Sale.find({
       clientId: req.params.clientId,
-      date: { $gte: new Date(fullDate.getFullYear(), fullDate.getMonth(), 1) }
+      date: { $gte: new Date(fullDate.getFullYear(), fullDate.getMonth(), 1) },
     })
-      .then(async sales => {
+      .then(async (sales) => {
         console.log(sales);
         if (sales.length > 0) {
           const salesWithBeer = [];
           sales.map((sale, index) => {
             var beerName = "";
-            Keg.findOne({ _id: sale.kegId }).then(keg => {
+            Keg.findOne({ _id: sale.kegId }).then((keg) => {
               if (keg) {
-                Beer.findOne({ _id: keg.beerId }).then(beer => {
+                Beer.findOne({ _id: keg.beerId }).then((beer) => {
                   salesWithBeer.push({ ...sale._doc, beerName: beer.name });
                   if (index === sales.length - 1)
                     res.json({ confirmation: "success", data: salesWithBeer });
@@ -298,10 +300,10 @@ module.exports = function(app, io) {
           });
         } else res.json({ confirmation: "success", data: [] });
       })
-      .catch(err => res.json({ confirmation: "FAIL" }));
+      .catch((err) => res.json({ confirmation: "FAIL" }));
   });
 
-  app.get("/getStorage", function(req, res) {
+  app.get("/getStorage", function (req, res) {
     exec("df -h", (error, stdout, stderr) => {
       if (error || stderr) {
         console.log(`error: ${error.message}`);
@@ -310,10 +312,9 @@ module.exports = function(app, io) {
     });
   });
 
-
-  app.post("/getWorker", function(req, res) {
+  app.post("/getWorker", function (req, res) {
     console.warn(req.body);
-    Worker.findOne({ cardId: req.body.cardId }, function(err, data) {
+    Worker.findOne({ cardId: req.body.cardId }, function (err, data) {
       if (data) {
         res.json({ confirmation: "success", data: data });
       } else {
@@ -322,8 +323,8 @@ module.exports = function(app, io) {
     });
   });
 
-  app.post("/getLine", function(req, res) {
-    Line.findOne({ _id: req.body.lineId }, function(err, data) {
+  app.post("/getLine", function (req, res) {
+    Line.findOne({ _id: req.body.lineId }, function (err, data) {
       if (data) {
         res.json({ confirmation: "success", data: data });
       } else {
@@ -332,26 +333,26 @@ module.exports = function(app, io) {
     });
   });
 
-  app.post("/editPlaceInfo", upload.single("file"), function(req, res) {
+  app.post("/editPlaceInfo", upload.single("file"), function (req, res) {
     const path = "/home/pi/Documents/Beer_control/data";
     fs.writeFile(
       path + "/local.json",
       JSON.stringify(req.body),
       "utf-8",
-      function(err) {
+      function (err) {
         if (err) res.json({ confirmation: "fail" });
         else res.json({ confirmation: "success" });
       }
     );
   });
 
-  app.post("/addEmergencyCard", function(req, res) {
+  app.post("/addEmergencyCard", function (req, res) {
     const path = "/home/pi/Documents/Beer_control/data";
     fs.writeFile(
       path + "/.emergencyCard.json",
       JSON.stringify(req.body),
       "utf-8",
-      function(err) {
+      function (err) {
         if (err) res.json({ confirmation: "fail" });
         else {
           io.emit("addEmergencyCard", { data: req.body.cardId });
@@ -361,10 +362,10 @@ module.exports = function(app, io) {
     );
   });
 
-  app.post("/disconnectLine", function(req, res) {
-    Line.findOne({ noLinea: req.body.noLinea }, function(err, data) {
+  app.post("/disconnectLine", function (req, res) {
+    Line.findOne({ noLinea: req.body.noLinea }, function (err, data) {
       if (data) {
-        Keg.findOne({ _id: data.idKeg }, function(err, keg) {
+        Keg.findOne({ _id: data.idKeg }, function (err, keg) {
           if (keg) {
             keg.status = "DISCONNECTED";
             keg.markModified("status");
@@ -383,7 +384,7 @@ module.exports = function(app, io) {
     });
   });
 
-  app.post("/deleteKeg", function(req, res) {
+  app.post("/deleteKeg", function (req, res) {
     Keg.findOne({ _id: req.body.id }, (err, keg) => {
       if (keg) {
         keg.status = "EMPTY";
@@ -394,7 +395,7 @@ module.exports = function(app, io) {
     });
   });
 
-  app.post("/sale_completed", function(req, res) {
+  app.post("/sale_completed", function (req, res) {
     var ObjectId = mongoose.Types.ObjectId;
     var newSale = new Sale();
     newSale._id = new ObjectId().toString();
@@ -449,7 +450,7 @@ module.exports = function(app, io) {
   //                                                                //
   ////////////////////////////////////////////////////////////////////
 
-  app.post("/remote-sale", function(req, res) {
+  app.post("/remote-sale", function (req, res) {
     const { cardId, lineId, concept } = req.body;
     Worker.findOne({ cardId }, (err, data) => {
       if (data) {
@@ -462,7 +463,7 @@ module.exports = function(app, io) {
               socket.emit("remoteSell", {
                 confirmation: "success",
                 data,
-                concept: arduinoConcept
+                concept: arduinoConcept,
               });
               res.json({ confirmation: "success" });
             } else res.json({ confirmation: "LL not connected" });
@@ -472,7 +473,7 @@ module.exports = function(app, io) {
     });
   });
 
-  app.get("/sales/:from/:to", function(req, res) {
+  app.get("/sales/:from/:to", function (req, res) {
     const fullDate = new Date();
     var lastDay;
     if (req.params.to != null)
@@ -485,8 +486,8 @@ module.exports = function(app, io) {
       {
         date: {
           $gte: new Date(fullDate.getFullYear(), req.params.from, 1),
-          $lt: lastDay
-        }
+          $lt: lastDay,
+        },
       },
       (err, data) => {
         if (data) {
@@ -498,7 +499,7 @@ module.exports = function(app, io) {
     );
   });
 
-  app.post("/connect-line", function(req, res) {
+  app.post("/connect-line", function (req, res) {
     const date = new Date();
     Line.findOne({ _id: req.body.id }, (err, line) => {
       if (line) {
@@ -513,7 +514,7 @@ module.exports = function(app, io) {
                   "/" +
                   date.getMonth() +
                   "/" +
-                  date.getDate()
+                  date.getDate(),
               };
               oldKeg.markModified("status");
               oldKeg.save();
@@ -537,28 +538,28 @@ module.exports = function(app, io) {
     });
   });
 
-  app.post("/keg_sales", function(req, res) {
+  app.post("/keg_sales", function (req, res) {
     Sale.find({ kegId: req.body.kegId }, (err, data) => {
       if (err) {
         res.json({ confirmation: "fail" });
       } else {
-        var promises = data.map(async function(sale) {
+        var promises = data.map(async function (sale) {
           const keg = await Keg.findOne({ _id: sale.kegId }).exec();
           const beer = await Beer.findOne({ _id: keg.beerId }).exec();
           return { ...sale._doc, beerName: beer.name };
         });
 
         Promise.all(promises)
-          .then(function(results) {
+          .then(function (results) {
             console.log("se armo");
             res.json({ confirmation: "success", data: results });
           })
-          .catch(err => console.log(err.message));
+          .catch((err) => console.log(err.message));
       }
     });
   });
 
-  app.post("/worker_sales", function(req, res) {
+  app.post("/worker_sales", function (req, res) {
     const fullDate = new Date();
     const salesPeriod =
       req.body.period > -1
@@ -575,27 +576,27 @@ module.exports = function(app, io) {
         if (err) {
           res.json({ confirmation: "fail" });
         } else {
-          var promises = data.map(async function(sale) {
+          var promises = data.map(async function (sale) {
             const keg = await Keg.findOne({ _id: sale.kegId }).exec();
             const beer = await Beer.findOne({ _id: keg.beerId }).exec();
             return { ...sale._doc, beerName: beer.name };
           });
 
           Promise.all(promises)
-            .then(function(results) {
+            .then(function (results) {
               console.log("se armo");
               res.json({ confirmation: "success", data: results });
             })
-            .catch(err => console.log(err.message));
+            .catch((err) => console.log(err.message));
         }
       }
     );
   });
 
-  app.get("/placeLogo", function(req, res) {
+  app.get("/placeLogo", function (req, res) {
     const folder = "/home/pi/Documents/dist/";
     var fileName;
-    fs.readdirSync(folder).forEach(file => {
+    fs.readdirSync(folder).forEach((file) => {
       if (file.includes("logo")) {
         console.log(folder + file);
         fileName = folder + file;
@@ -605,10 +606,10 @@ module.exports = function(app, io) {
     else res.status(422).json({ error: "There's no Image" });
   });
 
-  app.get("/setPlaceLogo", function(req, res) {
+  app.get("/setPlaceLogo", function (req, res) {
     const folder = "/home/pi/Documents/dist/";
     var fileName;
-    fs.readdirSync(folder).forEach(file => {
+    fs.readdirSync(folder).forEach((file) => {
       if (file.includes("logo")) {
         console.log(folder + file);
         fileName = folder + file;
@@ -618,7 +619,7 @@ module.exports = function(app, io) {
     else res.status(422).json({ error: "There's no Image" });
   });
 
-  app.post("/setSchedule", function(req, res) {
+  app.post("/setSchedule", function (req, res) {
     const { id, horario } = req.body;
     Worker.findOne({ _id: id }, (err, data) => {
       const decodedData = JSON.parse(horario);
@@ -643,7 +644,7 @@ module.exports = function(app, io) {
     res.json({ local: req.files[0].filename, cloud: req.file.secure_url });
   });
 
-  app.post("/addKeg", function(req, res) {
+  app.post("/addKeg", function (req, res) {
     var responseFlag = 0;
     for (var i = 0; i < req.body.qty; i++) {
       const ObjectId = mongoose.Types.ObjectId;
@@ -652,7 +653,7 @@ module.exports = function(app, io) {
       newKeg.available = req.body.capacity;
       // newKeg.image = req.file ? req.files[0].filename : null;
       Object.assign(newKeg, req.body);
-      newKeg.save(function(err, doc) {
+      newKeg.save(function (err, doc) {
         responseFlag++;
         console.log(responseFlag + " " + req.body.qty);
         if (responseFlag == req.body.qty) {
@@ -666,18 +667,18 @@ module.exports = function(app, io) {
     }
   });
   ////////////////////////////////////////////////////////////////////////
-  app.post("/addStock", upload.single("file"), function(req, res) {
+  app.post("/addStock", upload.single("file"), function (req, res) {
     // local: req.files[0].filename, cloud: req.file.secure_url
     var ObjectId = mongoose.Types.ObjectId;
     var newStock = new Stock();
     newStock._id = new ObjectId().toString();
     newStock.image = req.file ? req.file.filename : null;
     Object.assign(newStock, req.body);
-    newStock.save(function(err, doc) {
+    newStock.save(function (err, doc) {
       if (doc) {
         res.json({
           confirmation: "success",
-          data: newStock
+          data: newStock,
           // file: req.files[0].filename,
           // path: path.dirname(require.main.filename)
         });
@@ -687,8 +688,8 @@ module.exports = function(app, io) {
     });
   });
 
-  app.get("/getStock", function(req, res) {
-    Stock.find({}, function(err, data) {
+  app.get("/getStock", function (req, res) {
+    Stock.find({}, function (err, data) {
       if (data) {
         res.json({ confirmation: "success", data: data });
       } else {
@@ -697,8 +698,8 @@ module.exports = function(app, io) {
     });
   });
 
-  app.post("/deletStock", function(req, res) {
-    Stock.remove({ _id: req.body.id }, function(err) {
+  app.post("/deletStock", function (req, res) {
+    Stock.remove({ _id: req.body.id }, function (err) {
       if (err) {
         res.json({ confirmation: "fail" });
       } else {
@@ -707,9 +708,9 @@ module.exports = function(app, io) {
     });
   });
 
-  app.post("/subtract_inventory", function(req, res) {
+  app.post("/subtract_inventory", function (req, res) {
     const items = req.body.items;
-    items.forEach(item => {
+    items.forEach((item) => {
       Stock.findOne({ _id: item.id }, (err, data) => {
         if (err) res.json({ confirmation: "fail" });
         else {
@@ -722,9 +723,9 @@ module.exports = function(app, io) {
     });
   });
 
-  app.post("/add_inventory", function(req, res) {
+  app.post("/add_inventory", function (req, res) {
     const items = req.body.items;
-    items.forEach(item => {
+    items.forEach((item) => {
       Stock.findOne({ _id: item.id }, (err, data) => {
         if (err) res.json({ confirmation: "fail" });
         else {
@@ -739,8 +740,8 @@ module.exports = function(app, io) {
 
   ////////////////////////////////////////////////////////////////////////
 
-  app.get("/getKegs", function(req, res) {
-    Keg.find({ status: { $ne: "EMPTY" } }, function(err, data) {
+  app.get("/getKegs", function (req, res) {
+    Keg.find({ status: { $ne: "EMPTY" } }, function (err, data) {
       if (data) {
         res.json({ confirmation: "success", data: data });
       } else {
@@ -749,7 +750,7 @@ module.exports = function(app, io) {
     });
   });
 
-  app.post("/addBeer", fileUpload, function(req, res) {
+  app.post("/addBeer", fileUpload, function (req, res) {
     // local: req.files[0].filename, cloud: req.file.secure_url
     console.warn(req.body);
 
@@ -768,7 +769,7 @@ module.exports = function(app, io) {
     newBeer.type = req.body.type[0];
     newBeer.description = req.body.description[0]; //////   --------------------------> description cambiar a description !!!!!!!!!!!!!
     console.warn(req.body);
-    newBeer.save(function(err, data) {
+    newBeer.save(function (err, data) {
       if (data) {
         res.json({ confirmation: "success", data: data });
       } else {
@@ -777,12 +778,12 @@ module.exports = function(app, io) {
     });
   });
 
-  app.post("/editBeer", fileUpload, function(req, res) {
-    Beer.findOne({ _id: req.body.id[0] }).then(data => {
+  app.post("/editBeer", fileUpload, function (req, res) {
+    Beer.findOne({ _id: req.body.id[0] }).then((data) => {
       if (data) {
         if (req.file && data.image) {
           const mainPath = path.dirname(require.main.filename) + "/images/";
-          fs.unlink(mainPath + data.image, function(err) {});
+          fs.unlink(mainPath + data.image, function (err) {});
         }
         data.name = req.body.name[0];
         data.brand = req.body.brand[0];
@@ -801,8 +802,8 @@ module.exports = function(app, io) {
     });
   });
 
-  app.get("/getBeers", function(req, res) {
-    Beer.find(req.body, function(err, data) {
+  app.get("/getBeers", function (req, res) {
+    Beer.find(req.body, function (err, data) {
       if (data) {
         res.json({ confirmation: "success", data: data });
       } else {
@@ -811,76 +812,134 @@ module.exports = function(app, io) {
     });
   });
 
-  app.get("/getSummary", function(req, res) {
-    Keg.find({ status: { $ne: "EMPTY" } }, function(err, kegs) {
+  app.get("/getSummary", function (req, res) {
+    Keg.find({ status: { $ne: "EMPTY" } }, function (err, kegs) {
       if (kegs) {
-        Beer.find({}, function(err, beers) {
+        Beer.find({}, function (err, beers) {
           if (beers) {
             Line.find({})
               .sort({ noLinea: "asc" })
               .exec()
-              .then(lines => {
+              .then((lines) => {
                 var placeInfo;
                 const folder = "/home/pi/Documents/Beer_control/data";
-                fs.readFile(folder + "/local.json", "utf8", function(
-                  err,
-                  jsonDoc
-                ) {
-                  placeInfo = JSON.parse(jsonDoc);
-                  fs.readFile(folder + "/.emergencyCard.json", "utf8", function(
-                    err,
-                    emergencyDoc
-                  ) {
-                    const emergencyCard = JSON.parse(emergencyDoc);
+                fs.readFile(
+                  folder + "/local.json",
+                  "utf8",
+                  function (err, jsonDoc) {
+                    placeInfo = JSON.parse(jsonDoc);
+                    fs.readFile(
+                      folder + "/.emergencyCard.json",
+                      "utf8",
+                      function (err, emergencyDoc) {
+                        const emergencyCard = JSON.parse(emergencyDoc);
 
-                    const fullDate = new Date();
+                        const fullDate = new Date();
 
-                    const salesPeriod = new Date(
-                      fullDate.getFullYear(),
-                      fullDate.getMonth(),
-                      1
-                    );
+                        const salesPeriod = new Date(
+                          fullDate.getFullYear(),
+                          fullDate.getMonth(),
+                          1
+                        );
 
-                    const lastDay = new Date(
-                      fullDate.getFullYear(),
-                      salesPeriod.getMonth() + 1,
-                      0
-                    );
+                        const lastDay = new Date(
+                          fullDate.getFullYear(),
+                          salesPeriod.getMonth() + 1,
+                          0
+                        );
 
-                    Sale.find(
-                      { date: { $gte: salesPeriod, $lt: lastDay } },
-                      (err, sales) => {
-                        if (sales) {
-                          Stock.find({}, function(err, stock) {
-                            if (stock) {
-                              Worker.find({}).then(workers => {
-                                if (workers)
-                                  res.json({
-                                    confirmation: "success",
-                                    data: {
-                                      kegs,
-                                      lines,
-                                      beers,
-                                      placeInfo,
-                                      emergencyCard,
-                                      sales,
-                                      stock,
-                                      workers
-                                    }
+                        Sale.find(
+                          { date: { $gte: salesPeriod, $lt: lastDay } },
+                          (err, sales) => {
+                            if (sales) {
+                              Stock.find({}, function (err, stock) {
+                                if (stock) {
+                                  Worker.find({}).then((workers) => {
+                                    if (workers)
+                                      res.json({
+                                        confirmation: "success",
+                                        data: {
+                                          kegs,
+                                          lines,
+                                          beers,
+                                          placeInfo,
+                                          emergencyCard,
+                                          sales,
+                                          stock,
+                                          workers,
+                                        },
+                                      });
+                                    else res.json({ confirmation: "fail" });
                                   });
-                                else res.json({ confirmation: "fail" });
+                                } else res.json({ confirmation: "fail" });
                               });
                             } else res.json({ confirmation: "fail" });
-                          });
-                        } else res.json({ confirmation: "fail" });
+                          }
+                        );
                       }
                     );
-                  });
-                });
+                  }
+                );
               });
           } else res.json({ confirmation: "fail" });
         });
       } else res.json({ confirmation: "fail" });
+    });
+  });
+
+  app.post("/get-user", function (req, res) {
+    // by cardId
+    const { cardId } = req.body;
+    User.findOne({ cardId: cardId }, function (err, data) {
+      if (data) {
+        res.json({ confirmation: "success", data: data });
+      } else {
+        res.json({ confirmation: "fail" });
+      }
+    });
+  });
+
+  app.post("/recharge-card", function (req, res) {
+    const { cardId, beers } = req.body;
+
+    User.findOne({ _id: cardId })
+      .then((data) => {
+        if (data) {
+          data.beers.pint += beers.pint;
+          data.beers.taster += beers.taster;
+          data.beers.flight += beers.flight;
+          data.markModified("beers");
+          data.save();
+          res.json({ confirmation: "success", data });
+        } else res.json({ confirmation: "fail" });
+      })
+      .catch((err) => {
+        res.json({ confirmation: "FAIL", msg: err, data: req.body });
+      });
+  });
+
+  //create new user
+  app.post("/create-user", function (req, res) {
+    // user schema:
+    // _id: String,
+    // name: String,
+    // lastName: String,
+    // cardId: String,
+    // beers: {
+    //   type: mongoose.Schema.Types.Mixed,
+    //   default: { pint: 0, taster: 0, flight: 2 }
+    // },
+
+    var ObjectId = mongoose.Types.ObjectId;
+    var newUser = new User();
+    newUser._id = new ObjectId().toString();
+    Object.assign(newUser, req.body);
+    newUser.save(function (err, doc) {
+      if (doc) {
+        res.json({ confirmation: "success", data: newUser });
+      } else {
+        res.json({ confirmation: "fail" });
+      }
     });
   });
 
@@ -895,7 +954,7 @@ module.exports = function(app, io) {
     }
   });
 
-  app.use(function(req, res, next) {
+  app.use(function (req, res, next) {
     res.status(404).send("Sorry cant find that!");
   });
 };

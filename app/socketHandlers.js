@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const fs = require("fs");
 const os = require("os");
+const User = require("./models/user");
 const Line = require("./models/Line");
 const Worker = require("./models/worker");
 const Client = require("./models/Client.js");
@@ -22,9 +23,46 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
   // Database Helper Functions
   const findWorkerByCardId = (cardId) => Worker.findOne({ cardId }).exec();
   const findClientByCardId = (cardId) => Client.findOne({ cardId }).exec();
+  const findUserByCardId = (cardId) => User.findOne({ cardId }).exec();
   const getKegs = () => Keg.find({ status: { $ne: "EMPTY" } }).exec();
   const getBeers = () => Beer.find({}).exec();
-  const getSortedLines = () => Line.find({}).sort({ noLinea: "asc" }).exec();
+  const getSortedLines = () =>
+    Line.find({ selfPour: true, idKeg: { $ne: "" } })
+      .sort({ noLinea: "asc" })
+      .exec();
+
+  // Función de ejemplo para determinar el tipo de sujeto
+  async function determineSubjectType(workerId) {
+    const worker = await Worker.findById(workerId);
+    if (worker) return { type: "worker", id: workerId };
+
+    // Verifica si existe un user o client con este ID
+    const client = await Client.findById(workerId);
+    if (client) return { type: "client", id: workerId };
+
+    const user = await User.findById(workerId);
+    if (user) return { type: "user", id: workerId };
+
+    return { type: "unknown", id: null };
+  }
+
+  const convertUserToWorker = (user) => {
+    const { _id, name, lastName, cardId, beers } = user;
+
+    return { _id, nombre: name, apellidos: lastName, cardId, beers };
+  };
+
+  const convertClientToWorker = (client) => {
+    const { _id, name, lastName, cardId, benefits } = client;
+
+    return {
+      _id,
+      nombre: name,
+      apellidos: lastName,
+      cardId: cardId,
+      beers: { pint: benefits.beers, taster: 0, flight: 0 },
+    };
+  };
 
   // Socket Management Functions
   const addLineToList = (id, socket) => {
@@ -129,32 +167,41 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
 
   const deductUserCredit = async (id, concept) => {
     console.warn("deducting credit");
-    const worker = await Worker.findOne({ _id: id });
-    console.warn("Got worker");
-    console.warn(worker.beers);
+    const user = await User.findOne({ _id: id });
+    console.warn("Got user");
+    console.warn(user.beers);
 
-    if (worker) {
-      if (!worker.isStaff) {
-        const { pint, taster, flight } = worker.beers;
-        switch (concept) {
-          case "PINT":
-            if (pint > 0) worker.beers.pint--;
-            else io.emit("wtf", { worker, concept });
-            break;
-          case "TASTER":
-            if (taster > 0) worker.beers.taster--;
-            else io.emit("wtf", { worker, concept });
-            break;
-          case "FLIGHT":
-            if (flight > 0) worker.beers.flight--;
-            else io.emit("wtf", { worker, concept });
-            break;
-          default:
-            break;
-        }
-        worker.markModified("beers");
-        worker.save();
+    if (user) {
+      const { pint, taster, flight } = user.beers;
+      switch (concept) {
+        case "PINT":
+          if (pint > 0) user.beers.pint--;
+          else io.emit("wtf", { user, concept });
+          break;
+        case "TASTER":
+          if (taster > 0) user.beers.taster--;
+          else io.emit("wtf", { user, concept });
+          break;
+        case "FLIGHT":
+          if (flight > 0) user.beers.flight--;
+          else io.emit("wtf", { user, concept });
+          break;
+        default:
+          break;
       }
+      user.markModified("beers");
+      user.save();
+    }
+  };
+
+  const deductClientCredit = async (id) => {
+    const client = await Client.findOne({ _id: id }).exec();
+
+    if (client) {
+      const beers = client.benefits.beers;
+      client.benefits.beers = beers - 1;
+      client.markModified("benefits");
+      client.save();
     }
   };
 
@@ -168,33 +215,53 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
   const handleWorkerEvents = (socket) => {
     socket.on("getWorker", async (msg) => {
       try {
+        // Primero, intenta encontrar un worker
         let worker = await findWorkerByCardId(msg.cardId);
-        if (!worker) {
-          console.warn("No worker found");
-          const client = await findClientByCardId(msg.cardId);
-          if (client) {
-            // cliento to worker conversion
-            worker = {
-              _id: client._id,
-              nombre: client.name,
-              apellidos: client.lastName,
-              cardId: client.cardId,
-              credit: 0,
-              vip: true,
-              beers: { pint: client.benefits.beers, taster: 0, flight: 0 },
-            };
-            console.warn("Client found: ", client);
-          } else console.warn("No client found");
-        }
 
-        socket.emit(
-          "validated user",
-          worker
-            ? { confirmation: "success", data: worker }
-            : { confirmation: "fail" }
-        );
+        // Si se encuentra un worker, emite el evento con la información del worker
+        if (worker)
+          socket.emit("validated user", {
+            confirmation: "success",
+            data: worker,
+          });
+        else {
+          // Si no se encuentra un worker, busca un user
+          let user = await findUserByCardId(msg.cardId);
+
+          if (user) {
+            // Convierte la información del user a formato worker y agrega el campo "type"
+            worker = convertUserToWorker(user);
+            worker.type = "user"; // Agrega el campo "type" especificando que era un user
+
+            socket.emit("validated user", {
+              confirmation: "success",
+              data: worker,
+            });
+          } else {
+            // Si no se encuentra un user, busca un client
+            let client = await findClientByCardId(msg.cardId);
+
+            if (client) {
+              // Convierte la información del client a formato worker y agrega el campo "type"
+              worker = convertClientToWorker(client);
+              worker.type = "client"; // Agrega el campo "type" especificando que era un client
+
+              socket.emit("validated user", {
+                confirmation: "success",
+                data: worker,
+              });
+            } else {
+              // Si no se encuentra ni worker, ni user, ni client, emite un evento de fallo
+              socket.emit("validated user", { confirmation: "fail" });
+            }
+          }
+        }
       } catch (err) {
         console.error(err);
+        socket.emit("validated user", {
+          confirmation: "fail",
+          error: err.message,
+        });
       }
     });
 
@@ -660,7 +727,77 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
       }
     });
 
-    // ESP32 signals it has finished pouring
+    // // ESP32 signals it has finished pouring
+    // socket.on("finished_pour", async function (msg) {
+    //   try {
+    //     io.emit("finished_pour", msg);
+
+    //     var ObjectId = mongoose.Types.ObjectId;
+    //     var newSale = new Sale();
+
+    //     newSale._id = new ObjectId().toString();
+    //     newSale.date = new Date();
+
+    //     msg.clientId ? (newSale.clientId = msg.clientId) : null;
+    //     newSale.qty = msg.totalPouredVolume;
+    //     Object.assign(newSale, msg);
+
+    //     await deductUserCredit(msg.workerId, msg.concept);
+
+    //     Keg.findOne({ _id: msg.kegId }, (err, data) => {
+    //       if (data) {
+    //         console.log(data.available - msg.qty);
+    //         data.available = data.available - msg.qty;
+    //         switch (msg.concept) {
+    //           case "TASTER":
+    //             data.taster = data.taster + 1;
+    //             break;
+    //           case "FLIGHT":
+    //             data.flight = data.flight + 1;
+    //             break;
+    //           case "PINT":
+    //             data.soldPints = data.soldPints + 1;
+    //             break;
+    //           case "GROWLER":
+    //             data.growlers.push({ qty: newSale.qty });
+    //             break;
+    //           case "MERMA":
+    //             data.merma += newSale.qty;
+    //             break;
+    //           default:
+    //         }
+    //         data.markModified("available");
+    //         data.save();
+    //         newSale.save((err, doc) => {
+    //           if (doc) {
+    //             io.emit("sale-commited", { data, doc });
+    //             //res.json({ confirmation: "success", data: doc });
+    //           }
+    //         });
+    //       }
+    //     });
+
+    //     newSale.save((err, doc) => {
+    //       if (doc) {
+    //         io.emit("sale-commited", { doc });
+    //         //res.json({ confirmation: "success", data: doc });
+    //       }
+    //     });
+
+    //     // // Store the sale in the DB
+    //     // const sale = new Sale({
+    //     //     workerId: msg.workerId,
+    //     //     kegId: msg.kegId,
+    //     //     concept: msg.concept,
+    //     //     qty: msg.qty,
+    //     //     date: new Date()
+    //     // });
+    //   } catch (error) {
+    //     console.error("Error in finished_pour:", error);
+    //     socket.emit("error", "Internal server error");
+    //   }
+    // });
+
     socket.on("finished_pour", async function (msg) {
       try {
         io.emit("finished_pour", msg);
@@ -671,26 +808,31 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
         newSale._id = new ObjectId().toString();
         newSale.date = new Date();
 
-        msg.clientId ? (newSale.clientId = msg.clientId) : null;
         newSale.qty = msg.totalPouredVolume;
         Object.assign(newSale, msg);
 
-        await deductUserCredit(msg.workerId, msg.concept);
+        // Consulta para determinar si el sujeto es un worker, user o client
+        const subject = await determineSubjectType(msg.workerId);
 
+        newSale.workerId = subject.type === "worker" ? subject.id : "N/A";
+
+        if (subject.type === "user") deductUserCredit(subject.id, msg.concept);
+        else if (subject.type === "client") deductClientCredit(subject.id);
 
         Keg.findOne({ _id: msg.kegId }, (err, data) => {
           if (data) {
             console.log(data.available - msg.qty);
             data.available = data.available - msg.qty;
+            // Actualiza los contadores en el barril según el concepto
             switch (msg.concept) {
               case "TASTER":
-                data.taster = data.taster + 1;
+                data.taster += 1;
                 break;
               case "FLIGHT":
-                data.flight = data.flight + 1;
+                data.flight += 1;
                 break;
               case "PINT":
-                data.soldPints = data.soldPints + 1;
+                data.soldPints += 1;
                 break;
               case "GROWLER":
                 data.growlers.push({ qty: newSale.qty });
@@ -705,29 +847,12 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
             newSale.save((err, doc) => {
               if (doc) {
                 io.emit("sale-commited", { data, doc });
-                //res.json({ confirmation: "success", data: doc });
               }
             });
           }
-        });        
-
-        newSale.save((err, doc) => {
-          if (doc) {
-            io.emit("sale-commited", { doc });
-            //res.json({ confirmation: "success", data: doc });
-          }
         });
 
-        // // Store the sale in the DB
-        // const sale = new Sale({
-        //     workerId: msg.workerId,
-        //     kegId: msg.kegId,
-        //     concept: msg.concept,
-        //     qty: msg.qty,
-        //     date: new Date()
-        // });
-
-
+        // El resto de tu código para manejar la venta y actualizar Keg...
       } catch (error) {
         console.error("Error in finished_pour:", error);
         socket.emit("error", "Internal server error");

@@ -13,8 +13,10 @@ var Client = require("./app/models/Client");
 const config = require("./config");
 mongoose.Promise = require("bluebird");
 
+// const CONNECTION_URI =
+//   process.env.MONGODB_URI || "mongodb://0.0.0.0:27017/tapOmeter";
 const CONNECTION_URI =
-  process.env.MONGODB_URI || "mongodb://0.0.0.0:27017/tapOmeter";
+  process.env.MONGODB_URI || "mongodb://beer-control.local:27017/beer_control"; // Heroku server
 var port = process.env.PORT || 3000;
 const lineList = [];
 var servingList = [];
