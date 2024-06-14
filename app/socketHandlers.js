@@ -3,13 +3,12 @@ const fs = require("fs");
 const os = require("os");
 const Line = require("./models/Line");
 const Worker = require("./models/worker");
-const Client = require("./models/Client.js");
 const { Keg, Beer, Sale } = require("../app/models");
 
 module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
-  
   // Utility Functions
-  const findIndexByKeyValue = (list, key, value) => list.findIndex(item => item[key] === value);
+  const findIndexByKeyValue = (list, key, value) =>
+    list.findIndex((item) => item[key] === value);
   const readJSONFile = (path) => {
     return new Promise((resolve, reject) => {
       fs.readFile(path, "utf8", (err, data) => {
@@ -21,13 +20,12 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
 
   // Database Helper Functions
   const findWorkerByCardId = (cardId) => Worker.findOne({ cardId }).exec();
-  const findClientByCardId = (cardId) => Client.findOne({ cardId }).exec();
   const getKegs = () => Keg.find({ status: { $ne: "EMPTY" } }).exec();
   const getBeers = () => Beer.find({}).exec();
   const getSortedLines = () => Line.find({}).sort({ noLinea: "asc" }).exec();
 
   // Socket Management Functions
-  const addLineToList = (id, socket) => { 
+  const addLineToList = (id, socket) => {
     let index = findIndexByKeyValue(lineList, "id", id);
 
     index === -1
@@ -44,9 +42,9 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
       return true;
     }
     return false;
-   };
+  };
 
-  const addWorkerSocket = (id, socket) => { 
+  const addWorkerSocket = (id, socket) => {
     let index = workerSockets.findIndex((worker) => worker._id === id);
     index === -1
       ? workerSockets.push({ id, socket })
@@ -117,17 +115,15 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
     });
   }
 
-
-   // Handle Socket Events
-   const handleChatMessage = (socket) => {
+  // Handle Socket Events
+  const handleChatMessage = (socket) => {
     socket.on("chat message", (msg) => {
       io.emit("chat message", msg);
     });
   };
 
-
   const handleWorkerEvents = (socket) => {
-    socket.on("getWorker", async (msg) => { 
+    socket.on("getWorker", async (msg) => {
       try {
         const worker = await findWorkerByCardId(msg.cardId);
         socket.emit(
@@ -203,45 +199,45 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
     });
 
     socket.on("getClient", async (msg) => {
-      try {
-        const client = await findClientByCardId(msg.cardId);
-        socket.emit(
-          "validated user",
-          client
-            ? { confirmation: "success", data: client }
-            : { confirmation: "fail" }
-        );
-      } catch (err) {
-        console.error(err);
-      }
+      // try {
+      //   const client = await findClientByCardId(msg.cardId);
+      //   socket.emit(
+      //     "validated user",
+      //     client
+      //       ? { confirmation: "success", data: client }
+      //       : { confirmation: "fail" }
+      //   );
+      // } catch (err) {
+      //   console.error(err);
+      // }
     });
 
     socket.on("redeemBeer", (msg) => {
       console.log("llegó a evento");
-      Client.findOne({ _id: msg.clientId }).then((client) => {
-        const beers = client.benefits.beers;
-        client.benefits.beers = beers - 1;
-        client.markModified("benefits");
-        client.save();
-        console.log("en teoría guardó consumo");
-        var ObjectId = mongoose.Types.ObjectId;
-        var newSale = new Sale();
-        newSale._id = new ObjectId().toString();
-        newSale.date = new Date();
-        newSale.workerId = "N/A";
-        newSale.concept = "PINT";
-        newSale.qty = ".473";
-        Object.assign(newSale, msg);
-        Keg.findOne({ _id: msg.kegId }, (err, data) => {
-          if (data) {
-            data.available = data.available - msg.qty;
-            data.soldPints = data.soldPints + 1;
-            data.markModified("available");
-            data.save();
-            newSale.save((err, doc) => {});
-          }
-        });
+      // Client.findOne({ _id: msg.clientId }).then((client) => {
+      // const beers = client.benefits.beers;
+      // client.benefits.beers = beers - 1;
+      // client.markModified("benefits");
+      // client.save();
+      console.log("en teoría guardó consumo");
+      var ObjectId = mongoose.Types.ObjectId;
+      var newSale = new Sale();
+      newSale._id = new ObjectId().toString();
+      newSale.date = new Date();
+      newSale.workerId = "N/A";
+      newSale.concept = "PINT";
+      newSale.qty = ".473";
+      Object.assign(newSale, msg);
+      Keg.findOne({ _id: msg.kegId }, (err, data) => {
+        if (data) {
+          data.available = data.available - msg.qty;
+          data.soldPints = data.soldPints + 1;
+          data.markModified("available");
+          data.save();
+          newSale.save((err, doc) => {});
+        }
       });
+      // });
     });
   };
 
@@ -403,7 +399,6 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
       }
     });
   };
-
 
   // Main Connection Handler
   io.on("connection", function (socket) {

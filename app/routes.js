@@ -6,14 +6,12 @@ var mongoose = require("mongoose");
 const config = require("../config");
 var Keg = require("../app/models/keg");
 const cloudinary = require("cloudinary");
-var User = require("../app/models/user");
 var Beer = require("../app/models/beer");
 var Sale = require("../app/models/sale");
 var Line = require("../app/models/Line");
 const { exec } = require("child_process");
 var Stock = require("../app/models/stock");
 var Worker = require("../app/models/worker");
-var Client = require("../app/models/Client");
 const cloudinaryStorage = require("multer-storage-cloudinary");
 
 const { cloud_name, api_key, api_secret } = config;
@@ -98,125 +96,46 @@ module.exports = function(app, io) {
       .catch(err => res.json({ confirmation: "FAIL" }));
   });
 
-  app.post("/addClient", function(req, res) {
-    var ObjectId = mongoose.Types.ObjectId;
-    var newClient = new Client();
-    newClient._id = new ObjectId().toString();
-    newClient.clientSince = new Date();
-    Object.assign(newClient, req.body);
-    Client.findOne({ cardId: req.body.cardId })
-      .then(data => {
-        if (data) res.json({ confirmation: "fail", message: "user exist" });
-        else {
-          newClient.save(function(err, doc) {
-            if (doc) res.json({ confirmation: "success", data: newClient });
-            else res.json({ confirmation: "fail" });
-          });
-        }
-      })
-      .catch(err => res.json({ confirmation: "FAIL" }));
-  });
 
-  app.get("/getClients", function(req, res) {
-    Client.find({})
-      .then(clients => {
-        if (clients) res.json({ confirmation: "success", data: clients });
-        else res.json({ confirmation: "fail" });
-      })
-      .catch(err => res.json({ confirmation: "FAIL" }));
-  });
+  // app.post("/claim-benefit", function(req, res) {
+  //   const { cardId, benefit, lineId } = req.body;
+  //   console.warn("cardId: "+cardId);
+  //   console.warn("benefit: "+benefit);
+  //   console.warn("lineId: "+lineId);
+  //   Client.findOne({ cardId: cardId })
+  //     .then(data => {
+  //       if (data) {
+  //         switch (benefit) {
+  //           case "beers":
+  //             if (data.benefits.beers > 0) {
+  //               Line.findOne({ _id: lineId }).then(line => {
+  //                 console.warn("Sí llegó y encontró");
+  //                 const socket = io.sockets.connected[line.socketId];
+  //                 console.warn(io.sockets.connected);
+  //                 console.warn("éste es el socket "+socket);
+  //                 console.warn("y éste es el socketId "+line.socketId);
 
-  app.post("/editClient", function(req, res) {
-    Client.findOne({ _id: req.body.id })
-      .then(data => {
-        if (data) {
-          data.name = req.body.name;
-          data.lastName = req.body.lastName;
-          data.cardId = req.body.cardId;
-          data.markModified("cardId");
-          data.save();
-          res.json({ confirmation: "success", data });
-        } else res.json({ confirmation: "fail" });
-      })
-      .catch(err => {
-        res.json({ confirmation: "FAIL" });
-      });
-  });
+  //                 if (socket) socket.emit("claimBeer", data._id);
+  //                 else {
+  //                   const beers = data.benefits.beers;
+  //                   data.benefits.beers = beers - 1;
+  //                   data.markModified("benefits");
+  //                   data.save();
+  //                 }
+  //               });
+  //             }
+  //             res.json({ confirmation: "success", data });
+  //             break;
+  //           default:
+  //             break;
+  //         }
+  //       } else res.json({ confirmation: "fail" });
+  //     })
+  //     .catch(err => {
+  //       res.json({ confirmation: "FAIL" });
+  //     });
+  // });
 
-  app.post("/checkClient", function(req, res) {
-    Client.findOne({ cardId: req.body.cardId })
-      .then(data => {
-        if (data) {
-          res.json({ confirmation: "success", data });
-        } else res.json({ confirmation: "fail" });
-      })
-      .catch(err => {
-        res.json({ confirmation: "FAIL" });
-      });
-  });
-
-  app.post("/claim-benefit", function(req, res) {
-    const { cardId, benefit, lineId } = req.body;
-    console.warn("cardId: "+cardId);
-    console.warn("benefit: "+benefit);
-    console.warn("lineId: "+lineId);
-    Client.findOne({ cardId: cardId })
-      .then(data => {
-        if (data) {
-          switch (benefit) {
-            case "beers":
-              if (data.benefits.beers > 0) {
-                Line.findOne({ _id: lineId }).then(line => {
-                  console.warn("Sí llegó y encontró");
-                  const socket = io.sockets.connected[line.socketId];
-                  console.warn(io.sockets.connected);
-                  console.warn("éste es el socket "+socket);
-                  console.warn("y éste es el socketId "+line.socketId);
-
-                  if (socket) socket.emit("claimBeer", data._id);
-                  else {
-                    const beers = data.benefits.beers;
-                    data.benefits.beers = beers - 1;
-                    data.markModified("benefits");
-                    data.save();
-                  }
-                });
-              }
-              res.json({ confirmation: "success", data });
-              break;
-            default:
-              break;
-          }
-        } else res.json({ confirmation: "fail" });
-      })
-      .catch(err => {
-        res.json({ confirmation: "FAIL" });
-      });
-  });
-
-  app.post("/addSaleClient", function(req, res) {
-    Client.findOne({ cardId: req.body.cardId })
-      .then(data => {
-        if (data) {
-          data.beersDrinked = data.beersDrinked.concat(req.body.beers);
-          switch (data.beersDrinked) {
-            case data.beersDrinked <= config.levels[1]:
-              data.level = level++;
-              break;
-            case data.beersDrinked <= config.levels[2]:
-              data.level = level++;
-              break;
-            default:
-          }
-          data.markModified("beersDrinked");
-          data.save();
-          res.json({ confirmation: "success", data });
-        } else res.json({ confirmation: "fail" });
-      })
-      .catch(err => {
-        res.json({ confirmation: "FAIL" });
-      });
-  });
 
   app.post("/editPersonal", upload.single("file"), function(req, res) {
     Worker.findOne({ _id: req.body.id })
@@ -423,15 +342,15 @@ module.exports = function(app, io) {
         data.markModified("available");
         data.save();
         newSale.save((err, doc) => {
-          if (req.body.clientId) {
-            Client.findOne({ _id: req.body.clientId }, (err, client) => {
-              if (client) {
-                client.beersDrinked++;
-                client.markModified("beersDrinked");
-                client.save();
-              }
-            });
-          }
+          // if (req.body.clientId) {
+          //   Client.findOne({ _id: req.body.clientId }, (err, client) => {
+          //     if (client) {
+          //       client.beersDrinked++;
+          //       client.markModified("beersDrinked");
+          //       client.save();
+          //     }
+          //   });
+          // }
           if (doc) {
             res.json({ confirmation: "success", data: doc });
           } else {

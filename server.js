@@ -28,50 +28,6 @@ setTimeout(() => {
   })
 }, 10000); // Espera 10 segundos antes de intentar conectarse a MongoDB
 
-
-const clients = mongoose.connection.collection("clients");
-
-const agenda = new Agenda({ db: { address: CONNECTION_URI } });
-
-agenda.define("weekly", async job => {
-  console.log("algo está pasando en semana");
-  await Client.update(
-    { level: 1 },
-    { $set: { benefits: config.benefits[0] } },
-    { multi: true }   
-  ).exec();
-  await Client.update(
-    { level: 4 },
-    { $set: { benefits: config.benefits[3] } },
-    { multi: true }
-  ).exec();
-  await Client.update(
-    { level: 2 },
-    { $inc: { "benefits.beers": config.benefits[1].beers } },
-    { multi: true }
-  ).exec();
-});
-
-agenda.define("monthly", async job => {
-  console.log("algo está pasando en mes");
-  await Client.update(
-    { level: 2 },
-    { $set: { benefits: config.benefits[1] } },
-    { multi: true }
-  ).exec();
-  await Client.update(
-    { level: 3 },
-    { $set: { benefits: config.benefits[2] } },
-    { multi: true }
-  ).exec();
-});
-
-agenda.on("ready", function() {
-  agenda.every("1 week", "weekly");
-  agenda.every("1 month", "monthly");
-  agenda.start();
-});
-
 app.set("views", __dirname + "/views");
 app.engine("html", require("ejs").renderFile);
 app.use(express.static(__dirname + "/public")); // Fixed the path here
