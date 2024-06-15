@@ -4,6 +4,7 @@ const os = require("os");
 const Line = require("./models/Line");
 const Worker = require("./models/worker");
 const { Keg, Beer, Sale } = require("../app/models");
+const { publishEvent } = require("../config/mqRabbit");
 
 module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
   // Utility Functions
@@ -199,26 +200,26 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
     });
 
     socket.on("getClient", async (msg) => {
-      // try {
-      //   const client = await findClientByCardId(msg.cardId);
-      //   socket.emit(
-      //     "validated user",
-      //     client
-      //       ? { confirmation: "success", data: client }
-      //       : { confirmation: "fail" }
-      //   );
-      // } catch (err) {
-      //   console.error(err);
-      // }
+      try {
+        const client = await findClientByCardId(msg.cardId);
+        socket.emit(
+          "validated user",
+          client
+            ? { confirmation: "success", data: client }
+            : { confirmation: "fail" }
+        );
+      } catch (err) {
+        console.error(err);
+      }
     });
 
     socket.on("redeemBeer", (msg) => {
       console.log("llegó a evento");
-      // Client.findOne({ _id: msg.clientId }).then((client) => {
-      // const beers = client.benefits.beers;
-      // client.benefits.beers = beers - 1;
-      // client.markModified("benefits");
-      // client.save();
+      publishEvent("sale_events", {
+        type: "redeemBeer",
+        data: { clientId: msg.clientId },
+      });
+
       console.log("en teoría guardó consumo");
       var ObjectId = mongoose.Types.ObjectId;
       var newSale = new Sale();
@@ -237,7 +238,6 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
           newSale.save((err, doc) => {});
         }
       });
-      // });
     });
   };
 

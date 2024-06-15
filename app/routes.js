@@ -12,6 +12,7 @@ var Line = require("../app/models/Line");
 const { exec } = require("child_process");
 var Stock = require("../app/models/stock");
 var Worker = require("../app/models/worker");
+const { publishEvent } = require('../config/mqRabbit');
 const cloudinaryStorage = require("multer-storage-cloudinary");
 
 const { cloud_name, api_key, api_secret } = config;

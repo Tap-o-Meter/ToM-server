@@ -7,8 +7,12 @@ services:
       - "3000:3000"
     environment:
       - MONGO_URI=mongodb://mongo:27017/tap-o-meter
+      - RABBITMQ_URI=amqp://rabbitmq
     depends_on:
       - mongo
+      - rabbitmq
+    networks:
+      - mynetwork
 
   mongo:
     image: mongo:4.4
@@ -16,6 +20,22 @@ services:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
+    networks:
+      - mynetwork
+    
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - mynetwork
+
+networks:
+  mynetwork:
+    external: true
 
 volumes:
   mongo-data:

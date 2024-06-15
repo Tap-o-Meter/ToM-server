@@ -1,6 +1,5 @@
 // server.js
 
-// get all the tools we need
 var express = require("express");
 var app = express();
 var http = require("http").Server(app);
@@ -8,10 +7,8 @@ var io = require("socket.io")(http);
 var mongoose = require("mongoose");
 var bodyParser = require("body-parser");
 var cors = require("cors");
-const Agenda = require("agenda");
-var Client = require("./app/models/Client");
-const config = require("./config");
 mongoose.Promise = require("bluebird");
+const { connectRabbitMQ } = require("./config/mqRabbit.js");
 
 const CONNECTION_URI = "mongodb://mongo:27017/tap-o-meter";
 console.warn("la mierda esra", process.env.MONGO_URI);
@@ -28,8 +25,7 @@ setTimeout(() => {
   })
 }, 10000); // Espera 10 segundos antes de intentar conectarse a MongoDB
 
-app.set("views", __dirname + "/views");
-app.engine("html", require("ejs").renderFile);
+
 app.use(express.static(__dirname + "/public")); // Fixed the path here
 app.use(express.static("public"));
 
@@ -42,6 +38,7 @@ const ioClient = require("socket.io-client").connect(
   "https://chikilla-real-time-taps.herokuapp.com/"
 );
 
+connectRabbitMQ();
 require("./app/routes.js")(app, io);
 require("./app/socketHandlers.js")(
   io,
