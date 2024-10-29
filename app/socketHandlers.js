@@ -6,13 +6,27 @@ var Beer = require("../app/models/beer");
 var Sale = require("../app/models/sale");
 const Client = require("./models/Client.js");
 var fs = require("fs");
-const path = require("path");
+const { time } = require("console");
 
-module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
-  // Obtener la ruta actual y unirla con la carpeta 'data'
-  const folder = path.join(process.cwd(), "data");
+const { v4: uuidv4 } = require('uuid');
 
-  const addLineToList = (id, socket) => {
+const pendingRequests = {};
+
+module.exports = function(io, lineList, servingList, workerSockets, ioClient, selfpour_socket) {
+  const findWorkerByCardId = (cardId) => Worker.findOne({ cardId }).exec();
+  const findUserByCardId = (cardId) => User.findOne({ cardId }).exec();
+
+  const convertUserToWorker = (user) => {
+    const { _id, name, lastName, cardId, beers } = user;
+
+    return { _id, nombre: name, apellidos: lastName, cardId, beers };
+  };
+
+   generateUniqueId = () => {
+    return uuidv4();
+  }
+
+  addLineToList = (id, socket) => {
     let index = lineList.findIndex(line => line.id === id);
     index === -1
       ? lineList.push({ id, socket })
@@ -86,17 +100,90 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
       io.emit("chat message", msg);
     });
 
-    socket.on("getWorker", msg => {
-      Worker.findOne({ cardId: msg.cardId }, (err, data) => {
-        if (data) {
-          socket.emit("validated user", { confirmation: "success", data });
+    // socket.io.on("error", error => {
+    //   console.log(error);
+    // });
+
+    // socket.on("getWorker", msg => {
+    //   Worker.findOne({ cardId: msg.cardId }, (err, data) => {
+    //     if (data) {
+    //       socket.emit("validated user", { confirmation: "success", data });
+    //     } else {
+    //       socket.emit("validated user", { confirmation: "fail" });
+    //     }
+    //   });
+    // });
+
+
+    // ============= TEST DE NUEVO EVENTO =============
+
+    selfpour_socket.on("validated user", (msg) => {
+      const { requestId } = msg;
+      const pendingRequest = pendingRequests[requestId];
+    
+      if (pendingRequest) {
+        clearTimeout(pendingRequest.timeout);
+    
+        if (msg.confirmation === "success") {
+          console.log("User validated: ", msg.data);
+          pendingRequest.socket.emit("validated user", {
+            confirmation: "success",
+            data: msg.data,
+            requestId,
+          });
         } else {
-          socket.emit("validated user", { confirmation: "fail" });
+          console.log("User not validated");
+          pendingRequest.socket.emit("validated user", {
+            confirmation: "fail",
+            requestId,
+          });
         }
-      });
+    
+        delete pendingRequests[requestId];
+      }
     });
 
+    socket.on("getWorker", async (msg) => {
+      try {
+        // Primero, intenta encontrar un worker
+        let worker = await findWorkerByCardId(msg.cardId);
+
+        // Si se encuentra un worker, emite el evento con la información del worker
+        if (worker)
+          socket.emit("validated user", {
+            confirmation: "success",
+            data: worker,
+          });
+        else {
+          const requestId = generateUniqueId();
+          msg.requestId = requestId;
+
+          const timeoutDuration = 500; // Duración del timeout en milisegundos
+          const timeout = setTimeout(() => {
+            socket.emit("validated user", { confirmation: "fail", requestId });
+            delete pendingRequests[requestId];
+          }, timeoutDuration);
+
+          pendingRequests[requestId] = { timeout, socket };
+
+          selfpour_socket.emit("getWorker", { msg });
+
+        }
+      } catch (err) {
+        console.error(err);
+        socket.emit("validated user", {
+          confirmation: "fail",
+          error: err.message,
+        });
+      }
+    });
+
+
     socket.on("sale_complete", msg => {
+      if(msg.workerId.length === 0) {
+        selfpour_socket.emit("finished_pour", msg);
+        return;
+      }
       var ObjectId = mongoose.Types.ObjectId;
       var newSale = new Sale();
       newSale._id = new ObjectId().toString();

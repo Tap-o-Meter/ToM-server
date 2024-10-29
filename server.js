@@ -51,6 +51,7 @@ agenda.define("weekly", async job => {
     { multi: true }
   ).exec();
 });
+
 agenda.define("monthly", async job => {
   console.log("algo está pasando en mes");
   var Client = require("./app/models/Client");
@@ -94,6 +95,10 @@ const ioClient = require("socket.io-client").connect(
   //"http://192.168.0.5:3000/"
 );
 
+const selfpour_socket = require("socket.io-client").connect(
+  "http://192.168.1.79"
+);
+
 // routes ======================================================================
 require("./app/routes.js")(app, io);
 require("./app/socketHandlers.js")(
@@ -101,7 +106,8 @@ require("./app/socketHandlers.js")(
   lineList,
   servingList,
   workerSockets,
-  ioClient
+  ioClient,
+  selfpour_socket
 );
 // launch ======================================================================
 http.listen(process.env.PORT || 3000, function() {
