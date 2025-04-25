@@ -819,7 +819,7 @@ module.exports = function(app, io) {
               .exec()
               .then(lines => {
                 var placeInfo;
-                const folder = "/home/pi/Documents/Beer_control/data";
+                const folder = "/home/tom/Documents/Beer_control/data";
                 fs.readFile(folder + "/local.json", "utf8", function(
                   err,
                   jsonDoc

@@ -6,13 +6,9 @@ var Beer = require("../app/models/beer");
 var Sale = require("../app/models/sale");
 const Client = require("./models/Client.js");
 var fs = require("fs");
-const path = require("path");
 
 module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
-  // Obtener la ruta actual y unirla con la carpeta 'data'
-  const folder = path.join(process.cwd(), "data");
-
-  const addLineToList = (id, socket) => {
+  addLineToList = (id, socket) => {
     let index = lineList.findIndex(line => line.id === id);
     index === -1
       ? lineList.push({ id, socket })
@@ -20,7 +16,7 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
     io.emit("lineConnected", { id, socket });
   };
 
-  const removeLineFromList = socketId => {
+  removeLineFromList = socketId => {
     const index = lineList.findIndex(line => line.socket === socketId);
     if (index !== -1) {
       lineList.splice(index, 1);
@@ -30,7 +26,7 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
     return false;
   };
 
-  const addWorkerSocket = (id, socket) => {
+  addWorkerSocket = (id, socket) => {
     let index = workerSockets.findIndex(worker => worker._id === id);
     index === -1
       ? workerSockets.push({ id, socket })
@@ -38,12 +34,12 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
     io.emit("workerSocketRegistered", { id, socket });
   };
 
-  const getWorkerSocket = workerId => {
+  getWorkerSocket = workerId => {
     const index = workerSockets.findIndex(worker => worker.id === workerId);
     return index !== -1 ? workerSockets[index].socket : false;
   };
 
-  const removeWorkerSocket = socketId => {
+  removeWorkerSocket = socketId => {
     const index = workerSockets.findIndex(worker => worker.socket === socketId);
     if (index !== -1) {
       const workerId = workerSockets[index].id;
@@ -54,7 +50,7 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
     return false;
   };
 
-  const addToServing = (sell, workerSocket) => {
+  addToServing = (sell, workerSocket) => {
     // sell : {qty, concept, percentage, lineId, workerId}
     let index = servingList.findIndex(
       serving => serving.lineId === sell.lineId
@@ -67,24 +63,25 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
     }
   };
 
-  // Se corrige: ahora se busca en servingList y se usa la línea de ID
-  const isLineServing = lineId => {
-    const index = servingList.findIndex(serving => serving.lineId === lineId);
+  isLineServing = lineId => {
+    const index = workerSockets.findIndex(line => line.socket === socketId);
     return index !== -1;
   };
 
-  const removeFromServing = lineId => {
-    const index = servingList.findIndex(serving => serving.lineId === lineId);
-    if (index !== -1) {
-      servingList.splice(index, 1);
-      io.emit("removedFromServing", { lineId });
-    }
+  removeFromServing = lineId => {
+    const index = servingList.findIndex(serving => lineId === serving.lineId);
+    index === -1 ? null : servingList.splice(index, 1);
+    io.emit("removedFromServing", { lineId });
   };
 
   io.on("connection", function(socket) {
     socket.on("chat message", function(msg) {
       io.emit("chat message", msg);
     });
+
+    // socket.io.on("error", error => {
+    //   console.log(error);
+    // });
 
     socket.on("getWorker", msg => {
       Worker.findOne({ cardId: msg.cardId }, (err, data) => {
@@ -138,6 +135,7 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
             if (doc) {
               removeFromServing(msg.lineId);
               io.emit("sale-commited", { data, doc });
+              //res.json({ confirmation: "success", data: doc });
             }
           });
         }
@@ -149,11 +147,14 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
       Worker.findOne({ cardId: msg.cardId }, (err, data) => {
         if (data) {
           Line.findOne({ _id: msg.lineId }).then(line => {
-            const socketToEmit = io.sockets.connected[line.socketId];
-            if (socketToEmit)
-              socketToEmit.emit("validated user", { confirmation: "success", data });
+            const socket = io.sockets.connected[line.socketId];
+            if (socket)
+              socket.emit("validated user", { confirmation: "success", data });
             else {
-              // Lógica adicional en caso de no encontrar el socket
+              // const beers = data.benefits.beers;
+              // data.benefits.beers = beers - 1;
+              // data.markModified("benefits");
+              // data.save();
             }
           });
         } else {
@@ -162,30 +163,45 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
       });
     });
 
+    // socket.on("workerConnected", msg => {
+    //   addWorkerSocket(msg.id, socket.id);
+    //   // Worker.findOne({ cardId: msg.cardId }, (err, data) => {
+    //   //   if (data) {
+    //   //     Line.findOne({ _id: msg.lineId }).then(line => {
+    //   //       const socket = io.sockets.connected[line.socketId];
+    //   //       if (socket)
+    //   //         socket.emit("validated user", { confirmation: "success", data });
+    //   //     });
+    //   //   } else {
+    //   //     socket.emit("validated user", { confirmation: "fail" });
+    //   //   }
+    //   // });
+    // });
+
     socket.on("remoteSell", msg => {
       const { cardId, lineId, concept } = msg;
       Worker.findOne({ cardId }, (err, data) => {
         if (data) {
           if (!isLineServing(lineId)) {
             Line.findOne({ _id: lineId }, (err, line) => {
-              const socketToEmit = io.sockets.connected[line.socketId];
+              const socket = io.sockets.connected[line.socketId];
               const arduinoConcept = config.options[concept];
-              if (socketToEmit) {
-                socketToEmit.emit("remoteSell", {
+              if (socket) {
+                socket.emit("remoteSell", {
                   confirmation: "success",
                   data,
                   concept: arduinoConcept
                 });
               } else {
                 socket.emit("errorServing", { msg: "LL not connected" });
-              }
+              } // res.json({ confirmation: "LL not connected" });
             });
           } else {
             socket.emit("errorServing", { msg: "Línea ocupada" });
-          }
+          } //res.json({ confirmation: "No Staff nor beers" });
         } else {
           socket.emit("errorServing", { msg: "No Worker Exist" });
-        }
+        } //res.json({ confirmation: "No Worker Exist" });
       });
     });
 
@@ -197,7 +213,9 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
         if (status) {
           SocketToEmit.emit("start", msg);
         }
+        // ============================== Handle with some sort of shit if cannot find client ==============================
       }
+      // ============================== Handle with some sort of shit if cannot find client ==============================
     });
 
     socket.on("getClient", msg => {
@@ -254,16 +272,46 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
       });
     });
 
+    // socket.on("updateData", () => {
+    //   Keg.find({ status: "CONNECTED" }, function(err, kegs) {
+    //     if (kegs) {
+    //       Beer.find({}, function(err, beers) {
+    //         if (beers) {
+    //           Line.find({})
+    //             .sort({ noLinea: "asc" })
+    //             .exec()
+    //             .then(lines => {
+    //               console.log(JSON.stringify({ kegs, lines, beers }));
+    //               ioClient.emit("update data", { kegs, lines, beers });
+    //             });
+    //         }
+    //       });
+    //     }
+    //   });
+    // });
+
     socket.on("updateData", async () => {
       try {
+        // Find all lines and sort them
         const lines = await Line.find({}).sort({ noLinea: "asc" }).exec();
+    
+        // Extract idKeg from each line
         const kegIds = lines.map(line => line.idKeg).filter(id => id);
+    
+        // Find all kegs that are currently connected to lines
         const kegs = await Keg.find({ _id: { $in: kegIds } }).exec();
+    
+        // Extract beerIds from the connected kegs
         const beerIds = kegs.map(keg => keg.beerId);
+    
+        // Find all beers that are linked to the connected kegs
         const beers = await Beer.find({ _id: { $in: beerIds } }).exec();
+    
+        // Emit the data to the client
         ioClient.emit("update data", { kegs, lines, beers });
       } catch (error) {
         console.error("Error in updateData: ", error);
+        // Handle the error appropriately. Maybe emit an error event to the client.
         ioClient.emit("error", "Failed to update data");
       }
     });
@@ -278,13 +326,14 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
                 .exec()
                 .then(lines => {
                   var placeInfo;
-                  fs.readFile(path.join(folder, "local.json"), "utf8", function(
+                  const folder = "/home/pi/Documents/Beer_control/data";
+                  fs.readFile(folder + "/local.json", "utf8", function(
                     err,
                     jsonDoc
                   ) {
                     placeInfo = JSON.parse(jsonDoc);
                     fs.readFile(
-                      path.join(folder, ".emergencyCard.json"),
+                      folder + "/.emergencyCard.json",
                       "utf8",
                       function(err, emergencyDoc) {
                         const emergencyCard = JSON.parse(emergencyDoc);
@@ -317,6 +366,7 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
 
     socket.on("worker connected", () => {
       addWorkerSocket("5eb7698b423ce36b02c7ab54", socket.id);
+      // addWorkerSocket(msg.id, socket.id);
       Keg.find({ status: { $ne: "EMPTY" } }, function(err, data) {
         if (data) {
           Beer.find({}, function(err, beers) {
@@ -326,7 +376,8 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
                 .exec()
                 .then(lines => {
                   var placeInfo;
-                  fs.readFile(path.join(folder, "local.json"), "utf8", function(
+                  const folder = "/home/pi/Documents/Beer_control/data";
+                  fs.readFile(folder + "/local.json", "utf8", function(
                     err,
                     jsonDoc
                   ) {
@@ -357,8 +408,9 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
               if (keg) {
                 Beer.findOne({ _id: keg.beerId }, function(err, beer) {
                   if (beer) {
+                    const folder = "/home/pi/Documents/Beer_control/data";
                     fs.readFile(
-                      path.join(folder, ".emergencyCard.json"),
+                      folder + "/.emergencyCard.json",
                       "utf8",
                       function(err, emergencyDoc) {
                         const emergencyCard = JSON.parse(emergencyDoc);
