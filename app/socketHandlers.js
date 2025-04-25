@@ -596,11 +596,13 @@ module.exports = function (io, lineList, servingList, workerSockets, ioClient) {
 
         // // Check if the line is connected to the server
         console.log(line.socketId);
+//	console.log(io.sockets.connected);
         console.log(io.sockets.connected[line.socketId]);
 
-        if (io.sockets.connected[line.socketId] === undefined) {
+       if (io.sockets.connected[line.socketId] === undefined) {
           socket.emit("line_not_available", { id: lineId });
-          return;
+	//io.to(line.socketId).emit("line_not_available", { id: lineId });          
+	return;
         }
 
         io.to(line.socketId).emit("request_device", {
