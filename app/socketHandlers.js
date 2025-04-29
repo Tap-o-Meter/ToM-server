@@ -346,63 +346,102 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient) {
       });
     });
 
-    socket.on("setUp", function(msg) {
-      Line.findOneAndUpdate(
-        { _id: msg.id },
-        { $set: { socketId: socket.id } },
-        { new: true },
-        (err, data) => {
-          if (data) {
-            Keg.findOne({ _id: data.idKeg }, function(err, keg) {
-              if (keg) {
-                Beer.findOne({ _id: keg.beerId }, function(err, beer) {
-                  if (beer) {
-                    fs.readFile(
-                      path.join(folder, ".emergencyCard.json"),
-                      "utf8",
-                      function(err, emergencyDoc) {
-                        const emergencyCard = JSON.parse(emergencyDoc);
-                        socket.emit("device info", {
-                          ...data._doc,
-                          name: beer.name,
-                          style: beer.style,
-                          abv: keg.abv,
-                          ibu: keg.ibu,
-                          emergencyCard: emergencyCard.cardId
-                        });
-                      }
-                    );
-                  }
-                });
-              } else {
-                socket.emit("disconnectedLine");
-              }
-            });
-            addLineToList(msg.id, socket.id);
-          } else if (err) {
-            console.log("Something wrong when updating data!");
-          } else {
-            Line.findOne({})
-              .sort({ noLinea: -1 })
-              .exec(function(err, item) {
-                var newLine = new Line();
-                newLine._id = msg.id;
-                newLine.socketId = socket.id;
-                newLine.noLinea = item.noLinea + 1;
-                newLine.save(function(err) {
-                  if (err) {
-                    console.log(err.message);
-                    socket.emit("chat message", err.message);
-                  } else {
-                    socket.emit("newLine", newLine);
-                    addLineToList(msg.id, socket.id);
-                  }
-                });
-              });
+socket.on("setUp", function(msg) {
+  Line.findOneAndUpdate(
+    { _id: msg.id },
+    { $set: { socketId: socket.id } },
+    { new: true },
+    (err, data) => {
+      if (err) {
+        console.error("Error updating line:", err);
+        return socket.emit("error", "Database error on update");
+      }
+
+      if (data) {
+        // Línea existente: devolvemos info del dispositivo
+        Keg.findOne({ _id: data.idKeg }, function(err, keg) {
+          if (err) {
+            console.error("Error finding keg:", err);
+            return socket.emit("error", "Database error on keg lookup");
           }
-        }
-      );
-    });
+          if (!keg) {
+            return socket.emit("disconnectedLine");
+          }
+
+          Beer.findOne({ _id: keg.beerId }, function(err, beer) {
+            if (err) {
+              console.error("Error finding beer:", err);
+              return socket.emit("error", "Database error on beer lookup");
+            }
+            if (!beer) {
+              return socket.emit("disconnectedLine");
+            }
+
+            fs.readFile(
+              path.join(folder, ".emergencyCard.json"),
+              "utf8",
+              function(err, emergencyDoc) {
+                if (err) {
+                  console.error("Error reading emergencyCard:", err);
+                  return socket.emit("error", "File read error");
+                }
+                let emergencyCard;
+                try {
+                  emergencyCard = JSON.parse(emergencyDoc).cardId;
+                } catch (parseErr) {
+                  console.error("Error parsing emergencyCard:", parseErr);
+                  return socket.emit("error", "JSON parse error");
+                }
+
+                socket.emit("device info", {
+                  ...data._doc,
+                  name:        beer.name,
+                  style:       beer.style,
+                  abv:         keg.abv,
+                  ibu:         keg.ibu,
+                  emergencyCard
+                });
+              }
+            );
+          });
+        });
+
+        addLineToList(msg.id, socket.id);
+      }
+      else {
+        // No existía: creamos una nueva línea
+        Line.findOne({})
+          .sort({ noLinea: -1 })
+          .exec(function(err, item) {
+            if (err) {
+              console.error("Error fetching last line:", err);
+              return socket.emit("error", "Database error on line lookup");
+            }
+
+            // Si no hay ninguna línea, arrancamos en 1
+            const nextNo = item ? item.noLinea + 1 : 1;
+
+            const newLine = new Line({
+              _id:       msg.id,
+              socketId:  socket.id,
+              noLinea:   nextNo
+            });
+
+            newLine.save(function(err, saved) {
+              if (err) {
+                console.error("Error saving new line:", err);
+                return socket.emit("error", err.message);
+              }
+
+              socket.emit("newLine", saved);
+              addLineToList(msg.id, socket.id);
+            });
+          });
+      }
+    }
+  );
+});
+
 
     socket.on("disconnect", function() {
       if (!removeLineFromList(socket.id)) {
