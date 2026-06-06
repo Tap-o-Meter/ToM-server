@@ -1,8 +1,8 @@
 module.exports = {
   levels: [0, 500, 1000],
-  cloud_name: "hcpa6zqmt",
-  api_key: "447648935843875",
-  api_secret: "-JiG1FQU-wIEbwfzi3hyfGkrrfo",
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "hcpa6zqmt",
+  api_key: process.env.CLOUDINARY_API_KEY || "447648935843875",
+  api_secret: process.env.CLOUDINARY_API_SECRET || "-JiG1FQU-wIEbwfzi3hyfGkrrfo",
   benefits: [
     { beers: 1 }, // reset semanal
     { beers: 1 }, //acomular semanal, reset mensual
