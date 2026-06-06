@@ -6,7 +6,14 @@ var Beer = require("../app/models/beer");
 var Sale = require("../app/models/sale");
 const Client = require("./models/Client.js");
 var fs = require("fs");
-const { time } = require("console");
+const path = require("path");
+const config = require("../config");
+const User = require("./models/user");
+
+// Carpeta de datos (local.json / .emergencyCard.json). Coincide con getSummary
+// en routes.js. Override por env var sin tocar código si cambia la máquina.
+const folder =
+  process.env.DATA_FOLDER || "/home/tom/Documents/Beer_control/data";
 
 // const { v4: uuidv4 } = require('uuid');
 
@@ -23,12 +30,12 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient, se
     return { _id, nombre: name, apellidos: lastName, cardId, beers };
   };
 
-   generateUniqueId = () => {
+  const generateUniqueId = () => {
     requestCounter += 1;
     return `req_${requestCounter}_${Date.now()}`;
   }
 
-  addLineToList = (id, socket) => {
+  const addLineToList = (id, socket) => {
     let index = lineList.findIndex(line => line.id === id);
     index === -1
       ? lineList.push({ id, socket })
@@ -97,6 +104,36 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient, se
     }
   };
 
+  // ============= NUEVO EVENTO (registrado UNA sola vez) =============
+  // Antes estaba dentro de io.on("connection"), por lo que se agregaba un
+  // listener nuevo a selfpour_socket por cada dispositivo conectado (fuga de
+  // memoria + emisiones duplicadas). Va aquí para registrarse una sola vez.
+  selfpour_socket.on("validated user", (msg) => {
+    const { requestId } = msg;
+    const pendingRequest = pendingRequests[requestId];
+
+    if (pendingRequest) {
+      clearTimeout(pendingRequest.timeout);
+
+      if (msg.confirmation === "success") {
+        console.log("User validated: ", msg.data);
+        pendingRequest.socket.emit("validated user", {
+          confirmation: "success",
+          data: msg.data,
+          requestId,
+        });
+      } else {
+        console.log("User not validated");
+        pendingRequest.socket.emit("validated user", {
+          confirmation: "fail",
+          requestId,
+        });
+      }
+
+      delete pendingRequests[requestId];
+    }
+  });
+
   io.on("connection", function(socket) {
     socket.on("chat message", function(msg) {
       io.emit("chat message", msg);
@@ -115,35 +152,6 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient, se
     //     }
     //   });
     // });
-
-
-    // ============= TEST DE NUEVO EVENTO =============
-
-    selfpour_socket.on("validated user", (msg) => {
-      const { requestId } = msg;
-      const pendingRequest = pendingRequests[requestId];
-    
-      if (pendingRequest) {
-        clearTimeout(pendingRequest.timeout);
-    
-        if (msg.confirmation === "success") {
-          console.log("User validated: ", msg.data);
-          pendingRequest.socket.emit("validated user", {
-            confirmation: "success",
-            data: msg.data,
-            requestId,
-          });
-        } else {
-          console.log("User not validated");
-          pendingRequest.socket.emit("validated user", {
-            confirmation: "fail",
-            requestId,
-          });
-        }
-    
-        delete pendingRequests[requestId];
-      }
-    });
 
     socket.on("getWorker", async (msg) => {
       try {

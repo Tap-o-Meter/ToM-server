@@ -27,6 +27,15 @@ const lineList = [];
 var servingList = [];
 const workerSockets = [];
 
+// Red de seguridad: un error no capturado en cualquier callback async NO debe
+// tumbar el proceso (eso desconectaría a todos los dispositivos a la vez).
+process.on("uncaughtException", err => {
+  console.error("uncaughtException (el proceso sigue vivo):", err);
+});
+process.on("unhandledRejection", reason => {
+  console.error("unhandledRejection:", reason);
+});
+
 // Configuración SSL
 let sslOptions;
 try {
@@ -115,8 +124,7 @@ agenda.on("ready", function() {
 
 app.set("views", __dirname + "/views");
 app.engine("html", require("ejs").renderFile);
-app.use(express.static(__dirname + "public"));
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, "public")));
 
 // require("./config/passport")(passport); // pass passport for configuration
 
@@ -128,14 +136,15 @@ app.use(bodyParser.json({ limit: "50mb" }));
 // app.use(passport.initialize());
 
 // Cloud connection ============================================================
-const ioClient = require("socket.io-client").connect(
-  "https://chikilla-real-time-taps.herokuapp.com/"
-  //"http://192.168.0.5:3000/"
-);
+const CLOUD_SOCKET_URL =
+  process.env.CLOUD_SOCKET_URL ||
+  "https://chikilla-real-time-taps.herokuapp.com/";
+const SELFPOUR_SOCKET_URL =
+  process.env.SELFPOUR_SOCKET_URL || "http://192.168.1.79";
 
-const selfpour_socket = require("socket.io-client").connect(
-  "http://192.168.1.79"
-);
+const ioClient = require("socket.io-client").connect(CLOUD_SOCKET_URL);
+
+const selfpour_socket = require("socket.io-client").connect(SELFPOUR_SOCKET_URL);
 
 // routes ======================================================================
 require("./app/routes.js")(app, io);

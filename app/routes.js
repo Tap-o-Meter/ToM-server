@@ -41,7 +41,7 @@ const parser = multer({
 
 var storage = multer.diskStorage({
   destination: function(req, file, cb) {
-    const logoPath = "/home/pi/Documents/dist";
+    const logoPath = "/home/tom/Documents/dist";
     const mainPath = path.dirname(require.main.filename) + "/images";
     const destination =
       req.route.path === "/editPlaceInfo" ? logoPath : mainPath;
@@ -198,17 +198,18 @@ module.exports = function(app, io) {
     Client.findOne({ cardId: req.body.cardId })
       .then(data => {
         if (data) {
-          data.beersDrinked = data.beersDrinked.concat(req.body.beers);
-          switch (data.beersDrinked) {
-            case data.beersDrinked <= config.levels[1]:
-              data.level = level++;
-              break;
-            case data.beersDrinked <= config.levels[2]:
-              data.level = level++;
-              break;
-            default:
-          }
+          // beersDrinked es numérico en el resto del sistema
+          data.beersDrinked =
+            (data.beersDrinked || 0) + parseInt(req.body.beers, 10);
+
+          // Nivel por umbrales de config.levels; solo sube, nunca baja
+          let nuevoNivel = 1;
+          if (data.beersDrinked >= config.levels[2]) nuevoNivel = 3;
+          else if (data.beersDrinked >= config.levels[1]) nuevoNivel = 2;
+          data.level = Math.max(data.level || 1, nuevoNivel);
+
           data.markModified("beersDrinked");
+          data.markModified("level");
           data.save();
           res.json({ confirmation: "success", data });
         } else res.json({ confirmation: "fail" });
@@ -261,7 +262,7 @@ module.exports = function(app, io) {
           data.nombre = req.body.nombre;
           data.apellidos = req.body.apellidos;
           data.cardId = req.body.cardId;
-          data.foto = req.file ? req.files[0].filename : data.foto;
+          data.foto = req.file ? req.file.filename : data.foto;
           data.markModified("cardId");
           data.save();
           res.json({ confirmation: "success", data });
@@ -363,7 +364,7 @@ module.exports = function(app, io) {
   });
 
   app.post("/editPlaceInfo", upload.single("file"), function(req, res) {
-    const path = "/home/pi/Documents/Beer_control/data";
+    const path = "/home/tom/Documents/Beer_control/data";
     fs.writeFile(
       path + "/local.json",
       JSON.stringify(req.body),
@@ -376,7 +377,7 @@ module.exports = function(app, io) {
   });
 
   app.post("/addEmergencyCard", function(req, res) {
-    const path = "/home/pi/Documents/Beer_control/data";
+    const path = "/home/tom/Documents/Beer_control/data";
     fs.writeFile(
       path + "/.emergencyCard.json",
       JSON.stringify(req.body),
@@ -508,7 +509,11 @@ module.exports = function(app, io) {
     if (req.params.to != null)
       lastDay = new Date(fullDate.getFullYear(), req.params.to, 1);
     else
-      lastDay = new Date(fullDate.getFullYear(), salesPeriod.getMonth() + 1, 0);
+      lastDay = new Date(
+        fullDate.getFullYear(),
+        parseInt(req.params.from, 10) + 1,
+        0
+      );
 
     //  date: { $gte: salesPeriod, $lt: lastDay } },
     Sale.find(
@@ -623,7 +628,7 @@ module.exports = function(app, io) {
   });
 
   app.get("/placeLogo", function(req, res) {
-    const folder = "/home/pi/Documents/dist/";
+    const folder = "/home/tom/Documents/dist/";
     var fileName;
     fs.readdirSync(folder).forEach(file => {
       if (file.includes("logo")) {
@@ -636,7 +641,7 @@ module.exports = function(app, io) {
   });
 
   app.get("/setPlaceLogo", function(req, res) {
-    const folder = "/home/pi/Documents/dist/";
+    const folder = "/home/tom/Documents/dist/";
     var fileName;
     fs.readdirSync(folder).forEach(file => {
       if (file.includes("logo")) {
@@ -737,34 +742,42 @@ module.exports = function(app, io) {
     });
   });
 
-  app.post("/subtract_inventory", function(req, res) {
+  app.post("/subtract_inventory", async function(req, res) {
     const items = req.body.items;
-    items.forEach(item => {
-      Stock.findOne({ _id: item.id }, (err, data) => {
-        if (err) res.json({ confirmation: "fail" });
-        else {
-          data.volume = data.volume - item.value;
-          data.markModified("volume");
-          data.save();
-        }
-      });
+    try {
+      await Promise.all(
+        items.map(async item => {
+          const data = await Stock.findOne({ _id: item.id }).exec();
+          if (data) {
+            data.volume = data.volume - item.value;
+            data.markModified("volume");
+            await data.save();
+          }
+        })
+      );
       res.json({ confirmation: "success" });
-    });
+    } catch (err) {
+      res.json({ confirmation: "fail" });
+    }
   });
 
-  app.post("/add_inventory", function(req, res) {
+  app.post("/add_inventory", async function(req, res) {
     const items = req.body.items;
-    items.forEach(item => {
-      Stock.findOne({ _id: item.id }, (err, data) => {
-        if (err) res.json({ confirmation: "fail" });
-        else {
-          data.volume = data.volume + parseInt(item.value);
-          data.markModified("volume");
-          data.save();
-        }
-      });
+    try {
+      await Promise.all(
+        items.map(async item => {
+          const data = await Stock.findOne({ _id: item.id }).exec();
+          if (data) {
+            data.volume = data.volume + parseInt(item.value);
+            data.markModified("volume");
+            await data.save();
+          }
+        })
+      );
       res.json({ confirmation: "success" });
-    });
+    } catch (err) {
+      res.json({ confirmation: "fail" });
+    }
   });
 
   ////////////////////////////////////////////////////////////////////////
