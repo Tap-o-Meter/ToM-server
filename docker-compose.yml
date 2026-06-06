@@ -1,0 +1,58 @@
+# ToM Server — orquestacion app + MongoDB
+#
+# Uso:
+#   cp .env.example .env   # y completar valores
+#   docker compose up -d --build
+#
+# Notas:
+# - mongo esta PINEADO a 4.4 a proposito: mongoose 4.2.8 no se conecta a Mongo
+#   5+, y ademas Mongo 5+ no corre en Raspberry Pi 4 (requiere ARMv8.2-A).
+# - Socket.IO queda en 2.3.0 (compatibilidad con dispositivos legacy). La imagen
+#   solo lo empaqueta, no lo cambia.
+
+services:
+  app:
+    build: .
+    image: tom-server:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # En Docker la DB es el servicio 'mongo' (no localhost)
+      MONGODB_URI: mongodb://mongo:27017/beer_control
+      # Path de datos dentro del contenedor (coincide con el volumen de abajo)
+      DATA_FOLDER: /home/tom/Documents/Beer_control/data
+    ports:
+      - "3000:3000"
+      - "3443:3443"
+    volumes:
+      # Datos de la instalacion (local.json, .emergencyCard.json)
+      - ./data:/home/tom/Documents/Beer_control/data
+      # Logo / dist
+      - ./dist:/home/tom/Documents/dist
+      # Imagenes subidas (fotos de personal/cervezas) — persistencia
+      - ./images:/usr/src/app/images
+      - ./uploads:/usr/src/app/uploads
+      # Certificados SSL (opcional; si no existen, arranca solo HTTP)
+      - ./cert:/usr/src/app/cert:ro
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  mongo:
+    image: mongo:4.4
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    # Descomenta solo si necesitas acceder a Mongo desde fuera del host:
+    # ports:
+    #   - "127.0.0.1:27017:27017"
+
+volumes:
+  mongo-data:

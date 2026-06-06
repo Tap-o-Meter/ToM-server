@@ -42,6 +42,30 @@ En **producción** conviene definirlas (sobre todo los secretos de Cloudinary).
 > romper la instalación actual. Antes de considerarlo seguro: define los env vars
 > en la máquina y **rota el `api_secret`** (ya quedó en el historial de git).
 
+## 🐳 Docker (despliegue replicable)
+
+Pensado para correr en Raspberry Pi 4 (arm64) de forma idéntica en cada sitio.
+
+```bash
+cp .env.example .env        # completar valores del sitio
+docker compose up -d --build
+docker compose logs -f app  # ver logs
+```
+
+Levanta dos servicios:
+- **`app`** — el server (Node 20, Socket.IO 2.3.0 intacto), con `restart: unless-stopped`.
+- **`mongo`** — `mongo:4.4` con volumen persistente `mongo-data`.
+
+**Decisiones importantes:**
+- **Mongo pineado a `4.4`**: `mongoose@4.2.8` no se conecta a Mongo 5+, y Mongo 5+ **no corre en Pi 4** (requiere ARMv8.2-A). No subir esa versión sin modernizar la capa de datos.
+- **Socket.IO no cambia** (`2.3.0`): la imagen solo lo empaqueta.
+- **Volúmenes** (datos persisten fuera del contenedor): `./data`, `./dist`, `./images`, `./uploads`, `./cert` (este último solo lectura).
+- **Red:** se publican los puertos `3000`/`3443` (modo bridge). Si algún dispositivo legacy tuviera problemas para conectar por WebSocket, la alternativa es poner el servicio `app` en `network_mode: host` y apuntar `MONGODB_URI` a `127.0.0.1`.
+
+> 🧪 **Probar primero en una Pi de repuesto** (que conecten dispositivos de prueba, validen usuario, sirvan y suban imagen) antes de migrar una instalación en producción.
+
+La imagen se construye nativamente en la propia Pi (`arm64`). Para builds multi-arquitectura usar `docker buildx`.
+
 ## 📂 Estructura
 
 ```

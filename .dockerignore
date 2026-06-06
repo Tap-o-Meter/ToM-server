@@ -1,0 +1,24 @@
+# Dependencias (se instalan dentro de la imagen con npm ci)
+node_modules
+npm-debug.log*
+
+# Git / metadata
+.git
+.gitignore
+
+# Secretos y entorno (se inyectan en runtime via env_file)
+.env
+.env.*
+!.env.example
+
+# Datos / certs / uploads (se montan como volumenes en runtime)
+data
+dist
+cert
+images
+uploads
+
+# Docs y basura del SO
+*.md
+.DS_Store
+Procfile
