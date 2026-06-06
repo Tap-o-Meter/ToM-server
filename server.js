@@ -4,8 +4,9 @@
 // get all the tools we need
 var express = require("express");
 var app = express();
-var http = require("http").Server(app);
-var io = require("socket.io")(http);
+var fs = require("fs");
+var http = require("http");
+var https = require("https");
 var mongoose = require("mongoose");
 // var passport = require("passport");
 var bodyParser = require("body-parser");
@@ -13,6 +14,7 @@ var cors = require("cors");
 const Agenda = require("agenda");
 var Client = require("./app/models/Client");
 const config = require("./config");
+const path = require("path");
 mongoose.Promise = require("bluebird");
 
 //var configDB = require("./config/database.js");
@@ -20,9 +22,45 @@ const CONNECTION_URI =
   process.env.MONGODB_URI || "mongodb://0.0.0.0:27017/beer_control"; // Heroku server
 //var ipaddress = process.env.IP || process.env.OPENSHIFT_NODEJS_IP || "0.0.0.0";
 var port = process.env.PORT || 3000;
+var httpsPort = process.env.HTTPS_PORT || 3443;
 const lineList = [];
 var servingList = [];
 const workerSockets = [];
+
+// Configuración SSL
+let sslOptions;
+try {
+  sslOptions = {
+    key: fs.readFileSync(path.join(__dirname, 'cert', 'server.key')),
+    cert: fs.readFileSync(path.join(__dirname, 'cert', 'server.crt'))
+  };
+  console.log('SSL certificates loaded successfully');
+} catch (error) {
+  console.log('SSL certificates not found, running HTTP only');
+  console.log('To enable HTTPS, create certificates in ./cert/ directory');
+  sslOptions = null;
+}
+
+// Crear servidores HTTP y HTTPS
+const httpServer = http.createServer(app);
+const httpsServer = sslOptions ? https.createServer(sslOptions, app) : null;
+
+// Socket.io con soporte para ambos servidores
+const io = require("socket.io")({
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+  transports: ['websocket', 'polling']
+});
+
+// Vincular Socket.IO a ambos servidores
+io.attach(httpServer);
+if (httpsServer) {
+  io.attach(httpsServer);
+}
+
 // configuration ===============================================================
 mongoose.connect(CONNECTION_URI, {
   useNewUrlParser: true,
@@ -110,12 +148,14 @@ require("./app/socketHandlers.js")(
   selfpour_socket
 );
 // launch ======================================================================
-http.listen(process.env.PORT || 3000, function() {
-  console.log(
-    "Express server listening on port %d in %s mode",
-    this.address().port,
-    app.settings.env
-  );
+httpServer.listen(port, function() {
+  console.log('HTTP Server listening on port %d', port);
 });
+
+if (httpsServer) {
+  httpsServer.listen(httpsPort, function() {
+    console.log('HTTPS Server listening on port %d', httpsPort);
+  });
+}
 
 module.exports = app;

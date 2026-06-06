@@ -218,6 +218,38 @@ module.exports = function(app, io) {
       });
   });
 
+  app.post("/addBenefitsToClient", function(req, res) {
+    const { clientId, beersDrinked } = req.body;
+    
+    Client.findOne({ _id: clientId })
+      .then(client => {
+        if (client) {
+          // Agregar cervezas tomadas
+          if (beersDrinked && beersDrinked > 0) {
+            client.beersDrinked = client.beersDrinked + parseInt(beersDrinked);
+            client.markModified("beersDrinked");
+            
+            client.save()
+              .then(updatedClient => {
+                res.json({ confirmation: "success", data: updatedClient });
+              })
+              .catch(saveErr => {
+                console.error("Error al guardar cliente:", saveErr);
+                res.json({ confirmation: "fail", message: "Error al guardar" });
+              });
+          } else {
+            res.json({ confirmation: "fail", message: "Debe especificar cantidad" });
+          }
+        } else {
+          res.json({ confirmation: "fail", message: "Cliente no encontrado" });
+        }
+      })
+      .catch(err => {
+        console.error("Error al buscar cliente:", err);
+        res.json({ confirmation: "FAIL", error: err.message });
+      });
+  });
+
   app.post("/editPersonal", upload.single("file"), function(req, res) {
     Worker.findOne({ _id: req.body.id })
       .then(data => {

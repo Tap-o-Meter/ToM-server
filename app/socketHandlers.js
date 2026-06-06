@@ -8,8 +8,9 @@ const Client = require("./models/Client.js");
 var fs = require("fs");
 const { time } = require("console");
 
-const { v4: uuidv4 } = require('uuid');
+// const { v4: uuidv4 } = require('uuid');
 
+let requestCounter = 0;
 const pendingRequests = {};
 
 module.exports = function(io, lineList, servingList, workerSockets, ioClient, selfpour_socket) {
@@ -23,7 +24,8 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient, se
   };
 
    generateUniqueId = () => {
-    return uuidv4();
+    requestCounter += 1;
+    return `req_${requestCounter}_${Date.now()}`;
   }
 
   addLineToList = (id, socket) => {
