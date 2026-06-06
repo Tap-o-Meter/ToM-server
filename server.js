@@ -1,5 +1,34 @@
 // server.js
 
+// Carga variables desde .env (si existe) sin depender de paquetes externos.
+// Las variables ya presentes en el entorno (p.ej. config vars de Heroku) tienen
+// prioridad. Debe correr ANTES de require("./config").
+(function loadDotEnv() {
+  try {
+    const _fs = require("fs");
+    const _path = require("path");
+    const envPath = _path.join(__dirname, ".env");
+    if (!_fs.existsSync(envPath)) return;
+    _fs
+      .readFileSync(envPath, "utf8")
+      .split("\n")
+      .forEach(line => {
+        const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)\s*$/);
+        if (!match) return;
+        const key = match[1];
+        let val = match[2].trim();
+        if (
+          (val.startsWith('"') && val.endsWith('"')) ||
+          (val.startsWith("'") && val.endsWith("'"))
+        )
+          val = val.slice(1, -1);
+        if (!(key in process.env)) process.env[key] = val;
+      });
+  } catch (e) {
+    console.error("No se pudo cargar .env:", e.message);
+  }
+})();
+
 // set up ======================================================================
 // get all the tools we need
 var express = require("express");
