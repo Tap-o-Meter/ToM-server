@@ -9,6 +9,12 @@
 #   5+, y ademas Mongo 5+ no corre en Raspberry Pi 4 (requiere ARMv8.2-A).
 # - Socket.IO queda en 2.3.0 (compatibilidad con dispositivos legacy). La imagen
 #   solo lo empaqueta, no lo cambia.
+# - mosquitto es el canal nuevo de las lineas (firmware MQTT). Las lineas con
+#   firmware viejo siguen entrando por Socket.IO: ambos canales conviven.
+# - rewards (plugin de beneficios VIP) es OPCIONAL: se levanta con
+#     docker compose --profile rewards up -d --build
+#   Sin el profile, el sistema opera sin rewards (el manager oculta esas
+#   secciones via /capabilities).
 
 services:
   app:
@@ -22,6 +28,11 @@ services:
       MONGODB_URI: mongodb://mongo:27017/beer_control
       # Path de datos dentro del contenedor (coincide con el volumen de abajo)
       DATA_FOLDER: /home/tom/Documents/Beer_control/data
+      # En Docker el broker es el servicio 'mosquitto' (no localhost)
+      MQTT_URL: mqtt://mosquitto:1883
+      # Plugin de rewards (si el profile esta activo; si no, /capabilities
+      # reporta rewards:false y todo lo demas sigue igual)
+      REWARDS_URL: http://rewards:3001
     ports:
       - "3000:3000"
       - "3443:3443"
@@ -38,6 +49,40 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
+      mosquitto:
+        condition: service_started
+
+  rewards:
+    profiles: ["rewards"]
+    build: ../ToM Rewards
+    image: tom-rewards:latest
+    restart: unless-stopped
+    environment:
+      # Misma instancia de Mongo, base de datos propia del plugin
+      MONGODB_URI: mongodb://mongo:27017/rewards
+      MQTT_URL: mqtt://mosquitto:1883
+      PORT: 3001
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      # Las lineas (ESP32) en la LAN se conectan directo al broker
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-W", "3"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   mongo:
     image: mongo:4.4
@@ -56,3 +101,4 @@ services:
 
 volumes:
   mongo-data:
+  mosquitto-data:

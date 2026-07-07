@@ -40,8 +40,6 @@ var mongoose = require("mongoose");
 // var passport = require("passport");
 var bodyParser = require("body-parser");
 var cors = require("cors");
-const Agenda = require("agenda");
-var Client = require("./app/models/Client");
 const config = require("./config");
 const path = require("path");
 mongoose.Promise = require("bluebird");
@@ -104,52 +102,8 @@ mongoose.connect(CONNECTION_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 });
-const clients = mongoose.connection.collection("clients");
-// Scheduled tasks =============================================================
-const agenda = new Agenda({ db: { address: CONNECTION_URI } });
-
-agenda.define("weekly", async job => {
-  console.log("algo está pasando en semana");
-  var Client = require("./app/models/Client");
-  Client.update(
-    { level: 1 },
-    { $set: { benefits: config.benefits[0] } },
-    { multi: true }
-  ).exec();
-  Client.update(
-    { level: 4 },
-    { $set: { benefits: config.benefits[3] } },
-    { multi: true }
-  ).exec();
-  Client.update(
-    { level: 2 },
-    { $inc: { "benefits.beers": config.benefits[1].beers } },
-    { multi: true }
-  ).exec();
-});
-
-agenda.define("monthly", async job => {
-  console.log("algo está pasando en mes");
-  var Client = require("./app/models/Client");
-  const config = require("./config");
-  Client.update(
-    { level: 2 },
-    { $set: { benefits: config.benefits[1] } },
-    { multi: true }
-  ).exec();
-  Client.update(
-    { level: 3 },
-    { $set: { benefits: config.benefits[2] } },
-    { multi: true }
-  ).exec();
-});
-
-agenda.on("ready", function() {
-  agenda.every("1 week", "weekly");
-  agenda.every("1 month", "monthly");
-
-  agenda.start();
-});
+// Los resets programados de beneficios (agenda weekly/monthly) viven en el
+// plugin ToM Rewards, que es el dueño de los clientes VIP.
 
 app.set("views", __dirname + "/views");
 app.engine("html", require("ejs").renderFile);
@@ -175,8 +129,19 @@ const ioClient = require("socket.io-client").connect(CLOUD_SOCKET_URL);
 
 const selfpour_socket = require("socket.io-client").connect(SELFPOUR_SOCKET_URL);
 
+// MQTT: canal nuevo de las líneas; convive con Socket.IO ======================
+const mqttBridge = require("./app/mqttBridge");
+mqttBridge.init({ io, lineList, servingList, selfpour_socket });
+
+// Eventos de dominio hacia plugins (ToM Rewards consume tom/events/*)
+const events = require("./app/events");
+events.setPublisher(mqttBridge.publishEvent);
+
+// Plugin ToM Rewards: proxy /rewards/*, /capabilities y aliases legacy ========
+require("./app/rewardsProxy")(app);
+
 // routes ======================================================================
-require("./app/routes.js")(app, io);
+require("./app/routes.js")(app, io, mqttBridge);
 require("./app/socketHandlers.js")(
   io,
   lineList,

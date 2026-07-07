@@ -1,24 +1,19 @@
-var mongoose = require("mongoose");
 var Line = require("./models/Line");
 var Worker = require("./models/worker");
 var Keg = require("../app/models/keg");
 var Beer = require("../app/models/beer");
-var Sale = require("../app/models/sale");
-const Client = require("./models/Client.js");
 var fs = require("fs");
 const path = require("path");
 const config = require("../config");
 const User = require("./models/user");
+const { registerSale, redeemBenefitBeer } = require("./sales");
+const { getOrCreateLine, buildDeviceInfo } = require("./lineService");
+const workerLookup = require("./workerLookup");
 
 // Carpeta de datos (local.json / .emergencyCard.json). Coincide con getSummary
 // en routes.js. Override por env var sin tocar código si cambia la máquina.
 const folder =
   process.env.DATA_FOLDER || "/home/tom/Documents/Beer_control/data";
-
-// const { v4: uuidv4 } = require('uuid');
-
-let requestCounter = 0;
-const pendingRequests = {};
 
 module.exports = function(io, lineList, servingList, workerSockets, ioClient, selfpour_socket) {
   const findWorkerByCardId = (cardId) => Worker.findOne({ cardId }).exec();
@@ -29,11 +24,6 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient, se
 
     return { _id, nombre: name, apellidos: lastName, cardId, beers };
   };
-
-  const generateUniqueId = () => {
-    requestCounter += 1;
-    return `req_${requestCounter}_${Date.now()}`;
-  }
 
   const addLineToList = (id, socket) => {
     let index = lineList.findIndex(line => line.id === id);
@@ -104,35 +94,9 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient, se
     }
   };
 
-  // ============= NUEVO EVENTO (registrado UNA sola vez) =============
-  // Antes estaba dentro de io.on("connection"), por lo que se agregaba un
-  // listener nuevo a selfpour_socket por cada dispositivo conectado (fuga de
-  // memoria + emisiones duplicadas). Va aquí para registrarse una sola vez.
-  selfpour_socket.on("validated user", (msg) => {
-    const { requestId } = msg;
-    const pendingRequest = pendingRequests[requestId];
-
-    if (pendingRequest) {
-      clearTimeout(pendingRequest.timeout);
-
-      if (msg.confirmation === "success") {
-        console.log("User validated: ", msg.data);
-        pendingRequest.socket.emit("validated user", {
-          confirmation: "success",
-          data: msg.data,
-          requestId,
-        });
-      } else {
-        console.log("User not validated");
-        pendingRequest.socket.emit("validated user", {
-          confirmation: "fail",
-          requestId,
-        });
-      }
-
-      delete pendingRequests[requestId];
-    }
-  });
+  // Respuestas asíncronas del servicio selfpour a getWorker: registrado UNA
+  // sola vez y compartido con el canal MQTT (ver workerLookup.js).
+  workerLookup.attachSelfpour(selfpour_socket);
 
   io.on("connection", function(socket) {
     socket.on("chat message", function(msg) {
@@ -153,92 +117,26 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient, se
     //   });
     // });
 
-    socket.on("getWorker", async (msg) => {
-      try {
-        // Primero, intenta encontrar un worker
-        let worker = await findWorkerByCardId(msg.cardId);
-
-        // Si se encuentra un worker, emite el evento con la información del worker
-        if (worker)
-          socket.emit("validated user", {
-            confirmation: "success",
-            data: worker,
-          });
-        else {
-          const requestId = generateUniqueId();
-          msg.requestId = requestId;
-
-          const timeoutDuration = 500; // Duración del timeout en milisegundos
-          const timeout = setTimeout(() => {
-            socket.emit("validated user", { confirmation: "fail", requestId });
-            delete pendingRequests[requestId];
-          }, timeoutDuration);
-
-          pendingRequests[requestId] = { timeout, socket };
-
-          selfpour_socket.emit("getWorker", { msg });
-
-        }
-      } catch (err) {
-        console.error(err);
-        socket.emit("validated user", {
-          confirmation: "fail",
-          error: err.message,
-        });
-      }
+    socket.on("getWorker", msg => {
+      if (!msg || !msg.cardId) return;
+      workerLookup.validateWorker(msg.cardId, (event, payload) =>
+        socket.emit(event, payload)
+      );
     });
 
 
     socket.on("sale_complete", msg => {
-      if(msg.workerId.length === 0) {
+      if (!msg || !msg.kegId) return;
+      if ((msg.workerId || "").length === 0) {
         selfpour_socket.emit("finished_pour", msg);
         return;
       }
-      var ObjectId = mongoose.Types.ObjectId;
-      var newSale = new Sale();
-      newSale._id = new ObjectId().toString();
-      newSale.date = new Date();
-      msg.clientId ? (newSale.clientId = msg.clientId) : null;
-      Object.assign(newSale, msg);
-      if (msg.workerId.length > 0) console.warn(newSale);
-      Keg.findOne({ _id: msg.kegId }, (err, data) => {
-        if (data) {
-          console.log(data.available - msg.qty);
-          data.available = data.available - msg.qty;
-          switch (msg.concept) {
-            case "TASTER":
-              data.taster = data.taster + 1;
-              break;
-            case "PINT":
-              data.soldPints = data.soldPints + 1;
-              break;
-            case "GROWLER":
-              data.growlers.push({ qty: newSale.qty });
-              break;
-            case "MERMA":
-              data.merma = data.merma + parseFloat(newSale.qty);
-              break;
-            default:
-          }
-          data.markModified("available");
-          data.save();
-          newSale.save((err, doc) => {
-            if (msg.clientId) {
-              Client.findOne({ _id: msg.clientId }, (err, client) => {
-                if (client) {
-                  client.beersDrinked++;
-                  client.markModified("beersDrinked");
-                  client.save();
-                }
-              });
-            }
-            if (doc) {
-              removeFromServing(msg.lineId);
-              io.emit("sale-commited", { data, doc });
-            }
-          });
-        }
-      });
+      registerSale(msg)
+        .then(({ keg, sale }) => {
+          removeFromServing(msg.lineId);
+          io.emit("sale-commited", { data: keg, doc: sale });
+        })
+        .catch(err => console.error("sale_complete:", err.message));
     });
 
     socket.on("setWorker", msg => {
@@ -246,6 +144,7 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient, se
       Worker.findOne({ cardId: msg.cardId }, (err, data) => {
         if (data) {
           Line.findOne({ _id: msg.lineId }).then(line => {
+            if (!line) return socket.emit("validated user", { confirmation: "fail" });
             const socketToEmit = io.sockets.connected[line.socketId];
             if (socketToEmit)
               socketToEmit.emit("validated user", { confirmation: "success", data });
@@ -265,8 +164,12 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient, se
         if (data) {
           if (!isLineServing(lineId)) {
             Line.findOne({ _id: lineId }, (err, line) => {
+              if (err || !line)
+                return socket.emit("errorServing", { msg: "Línea no existe" });
               const socketToEmit = io.sockets.connected[line.socketId];
               const arduinoConcept = config.options[concept];
+              if (arduinoConcept === undefined)
+                return socket.emit("errorServing", { msg: "Concepto inválido" });
               if (socketToEmit) {
                 socketToEmit.emit("remoteSell", {
                   confirmation: "success",
@@ -291,20 +194,17 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient, se
       if (workerSocket) {
         const SocketToEmit = io.sockets.connected[workerSocket];
         const status = addToServing(msg, workerSocket);
-        if (status) {
+        if (status && SocketToEmit) {
           SocketToEmit.emit("start", msg);
         }
       }
     });
 
     socket.on("getClient", msg => {
-      Client.findOne({ cardId: msg.cardId }, (err, data) => {
-        if (data) {
-          socket.emit("validated client", { confirmation: "success", data });
-        } else {
-          socket.emit("validated client", { confirmation: "fail" });
-        }
-      });
+      if (!msg || !msg.cardId) return;
+      workerLookup.validateClient(msg.cardId, (event, payload) =>
+        socket.emit(event, payload)
+      );
     });
 
     socket.on("getBeersInfo", msg => {
@@ -324,31 +224,9 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient, se
     });
 
     socket.on("redeemBeer", msg => {
-      console.log("llegó a evento");
-      Client.findOne({ _id: msg.clientId }).then(client => {
-        const beers = client.benefits.beers;
-        client.benefits.beers = beers - 1;
-        client.markModified("benefits");
-        client.save();
-        console.log("en teoría guardó consumo");
-        var ObjectId = mongoose.Types.ObjectId;
-        var newSale = new Sale();
-        newSale._id = new ObjectId().toString();
-        newSale.date = new Date();
-        newSale.workerId = "N/A";
-        newSale.concept = "PINT";
-        newSale.qty = ".473";
-        Object.assign(newSale, msg);
-        Keg.findOne({ _id: msg.kegId }, (err, data) => {
-          if (data) {
-            data.available = data.available - msg.qty;
-            data.soldPints = data.soldPints + 1;
-            data.markModified("available");
-            data.save();
-            newSale.save((err, doc) => {});
-          }
-        });
-      });
+      redeemBenefitBeer(msg).catch(err =>
+        console.error("redeemBeer:", err.message)
+      );
     });
 
     socket.on("updateData", async () => {
@@ -379,12 +257,22 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient, se
                     err,
                     jsonDoc
                   ) {
-                    placeInfo = JSON.parse(jsonDoc);
+                    try {
+                      placeInfo = JSON.parse(jsonDoc);
+                    } catch (e) {
+                      console.error("client connected: local.json ilegible:", e.message);
+                      placeInfo = null;
+                    }
                     fs.readFile(
                       path.join(folder, ".emergencyCard.json"),
                       "utf8",
                       function(err, emergencyDoc) {
-                        const emergencyCard = JSON.parse(emergencyDoc);
+                        let emergencyCard = null;
+                        try {
+                          emergencyCard = JSON.parse(emergencyDoc);
+                        } catch (e) {
+                          console.error("client connected: .emergencyCard.json ilegible:", e.message);
+                        }
                         ioClient.emit("chat message", {
                           lineList,
                           lines,
@@ -427,7 +315,12 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient, se
                     err,
                     jsonDoc
                   ) {
-                    placeInfo = JSON.parse(jsonDoc);
+                    try {
+                      placeInfo = JSON.parse(jsonDoc);
+                    } catch (e) {
+                      console.error("worker connected: local.json ilegible:", e.message);
+                      placeInfo = null;
+                    }
                     socket.emit("Linelist", {
                       connectedLines: lineList,
                       kegs: data,
@@ -443,101 +336,24 @@ module.exports = function(io, lineList, servingList, workerSockets, ioClient, se
       });
     });
 
-socket.on("setUp", function(msg) {
-  Line.findOneAndUpdate(
-    { _id: msg.id },
-    { $set: { socketId: socket.id } },
-    { new: true },
-    (err, data) => {
-      if (err) {
-        console.error("Error updating line:", err);
-        return socket.emit("error", "Database error on update");
-      }
-
-      if (data) {
-        // Línea existente: devolvemos info del dispositivo
-        Keg.findOne({ _id: data.idKeg }, function(err, keg) {
-          if (err) {
-            console.error("Error finding keg:", err);
-            return socket.emit("error", "Database error on keg lookup");
-          }
-          if (!keg) {
-            return socket.emit("disconnectedLine");
-          }
-
-          Beer.findOne({ _id: keg.beerId }, function(err, beer) {
-            if (err) {
-              console.error("Error finding beer:", err);
-              return socket.emit("error", "Database error on beer lookup");
-            }
-            if (!beer) {
-              return socket.emit("disconnectedLine");
-            }
-
-            fs.readFile(
-              path.join(folder, ".emergencyCard.json"),
-              "utf8",
-              function(err, emergencyDoc) {
-                if (err) {
-                  console.error("Error reading emergencyCard:", err);
-                  return socket.emit("error", "File read error");
-                }
-                let emergencyCard;
-                try {
-                  emergencyCard = JSON.parse(emergencyDoc).cardId;
-                } catch (parseErr) {
-                  console.error("Error parsing emergencyCard:", parseErr);
-                  return socket.emit("error", "JSON parse error");
-                }
-
-                socket.emit("device info", {
-                  ...data._doc,
-                  name:        beer.name,
-                  style:       beer.style,
-                  abv:         keg.abv,
-                  ibu:         keg.ibu,
-                  emergencyCard
-                });
-              }
-            );
+    // Misma lógica que el setup MQTT (lineService): buscar/crear la línea y
+    // devolverle su "device info", o disconnectedLine si no tiene barril.
+    socket.on("setUp", function(msg) {
+      if (!msg || !msg.id) return;
+      getOrCreateLine(msg.id, socket.id)
+        .then(({ line, created }) => {
+          if (created) socket.emit("newLine", line);
+          addLineToList(msg.id, socket.id);
+          return buildDeviceInfo(line).then(info => {
+            if (info) socket.emit("device info", info);
+            else socket.emit("disconnectedLine");
           });
+        })
+        .catch(err => {
+          console.error("setUp:", err);
+          socket.emit("error", "Database error on update");
         });
-
-        addLineToList(msg.id, socket.id);
-      }
-      else {
-        // No existía: creamos una nueva línea
-        Line.findOne({})
-          .sort({ noLinea: -1 })
-          .exec(function(err, item) {
-            if (err) {
-              console.error("Error fetching last line:", err);
-              return socket.emit("error", "Database error on line lookup");
-            }
-
-            // Si no hay ninguna línea, arrancamos en 1
-            const nextNo = item ? item.noLinea + 1 : 1;
-
-            const newLine = new Line({
-              _id:       msg.id,
-              socketId:  socket.id,
-              noLinea:   nextNo
-            });
-
-            newLine.save(function(err, saved) {
-              if (err) {
-                console.error("Error saving new line:", err);
-                return socket.emit("error", err.message);
-              }
-
-              socket.emit("newLine", saved);
-              addLineToList(msg.id, socket.id);
-            });
-          });
-      }
-    }
-  );
-});
+    });
 
 
     socket.on("disconnect", function() {

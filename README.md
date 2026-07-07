@@ -1,13 +1,37 @@
 # ToM Server (Tap o Meter)
 
 Servidor de control de barriles/cervezas para Tap & Pour. Expone una API REST
-(Express) y un canal en tiempo real (Socket.IO) al que se conectan las líneas
-(dispositivos de tiro), el desk manager y los clientes de auto-servicio.
+(Express) y dos canales en tiempo real: **MQTT** (líneas con firmware nuevo)
+y **Socket.IO** (líneas con firmware viejo, desk manager y clientes de
+auto-servicio). Ambos canales conviven y llegan a la misma lógica
+(`app/sales.js`, `app/lineService.js`, `app/workerLookup.js`).
 
 > ⚠️ **Socket.IO está fijado en la versión `2.3.0` a propósito.** Hay
 > dispositivos en producción que usan un cliente muy antiguo. **No actualices
 > `socket.io`/`socket.io-client` ni cambies nombres de eventos o la forma de los
 > payloads**, o romperás la compatibilidad con el hardware conectado.
+
+## 📡 Canal MQTT (líneas)
+
+El broker es Mosquitto (servicio `mosquitto` del compose, puerto `1883`).
+El puente vive en `app/mqttBridge.js`; si el paquete `mqtt` no está instalado
+o el broker no responde, se deshabilita solo y todo sigue por Socket.IO.
+
+| Topic | Dirección | Contenido |
+|-------|-----------|-----------|
+| `tom/lines/{id}/setup` | línea → server | pide su `device info` |
+| `tom/lines/{id}/sale` | línea → server | venta (`workerId, kegId, concept, qty`) |
+| `tom/lines/{id}/getWorker` / `getClient` | línea → server | validación de tarjeta |
+| `tom/lines/{id}/redeemBeer` | línea → server | canje (`clientId, kegId`) |
+| `tom/lines/{id}/status` | línea → server | `online`/`offline` retained (LWT) |
+| `tom/lines/{id}/cmd/info` | server → línea | `device info` **retained** |
+| `tom/lines/{id}/cmd/{validated_user\|validated_client\|remoteSell\|claimBeer\|disconnectedLine}` | server → línea | respuestas y comandos |
+| `tom/broadcast/addEmergencyCard` | server → líneas | tarjeta de emergencia **retained** |
+
+Por qué es más robusto que Socket.IO para los dispositivos: el `info` retained
+hace que una línea reciba su configuración al arrancar aunque el server esté
+ocupado; el Last Will avisa solo cuando una línea muere; y el firmware guarda
+en SPIFFS las ventas que no pudo publicar y las reenvía al reconectar.
 
 ## 🚀 Inicio
 
@@ -31,6 +55,7 @@ En **producción** conviene definirlas (sobre todo los secretos de Cloudinary).
 | `PORT` | `3000` | Puerto HTTP |
 | `HTTPS_PORT` | `3443` | Puerto HTTPS |
 | `MONGODB_URI` | `mongodb://0.0.0.0:27017/beer_control` | Conexión a MongoDB |
+| `MQTT_URL` | `mqtt://localhost:1883` | Broker MQTT de las líneas |
 | `DATA_FOLDER` | `/home/tom/Documents/Beer_control/data` | Carpeta con `local.json` y `.emergencyCard.json` |
 | `CLOUD_SOCKET_URL` | `https://chikilla-real-time-taps.herokuapp.com/` | Socket.IO del servicio en la nube |
 | `SELFPOUR_SOCKET_URL` | `http://192.168.1.79` | Socket.IO del módulo de auto-servicio |

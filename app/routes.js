@@ -13,7 +13,9 @@ var Line = require("../app/models/Line");
 const { exec } = require("child_process");
 var Stock = require("../app/models/stock");
 var Worker = require("../app/models/worker");
-var Client = require("../app/models/Client");
+const events = require("./events");
+const { registerSale } = require("./sales");
+const { checkClient } = require("./rewardsClient");
 const cloudinaryStorage = require("multer-storage-cloudinary");
 
 const { cloud_name, api_key, api_secret } = config;
@@ -62,7 +64,7 @@ var upload = multer({
   limits: { fileSize: 1000000 }
 });
 
-module.exports = function(app, io) {
+module.exports = function(app, io, mqttBridge) {
   app.get("/", function(req, res) {
     res.render("index.ejs"); // load the index.ejs file
   });
@@ -98,157 +100,37 @@ module.exports = function(app, io) {
       .catch(err => res.json({ confirmation: "FAIL" }));
   });
 
-  app.post("/addClient", function(req, res) {
-    var ObjectId = mongoose.Types.ObjectId;
-    var newClient = new Client();
-    newClient._id = new ObjectId().toString();
-    newClient.clientSince = new Date();
-    Object.assign(newClient, req.body);
-    Client.findOne({ cardId: req.body.cardId })
-      .then(data => {
-        if (data) res.json({ confirmation: "fail", message: "user exist" });
-        else {
-          newClient.save(function(err, doc) {
-            if (doc) res.json({ confirmation: "success", data: newClient });
-            else res.json({ confirmation: "fail" });
-          });
-        }
-      })
-      .catch(err => res.json({ confirmation: "FAIL" }));
-  });
+  // Las rutas de clientes VIP (addClient, getClients, editClient,
+  // checkClient, addBenefitsToClient) viven en el plugin ToM Rewards;
+  // rewardsProxy.js las reenvía (incluye aliases legacy con estos paths).
 
-  app.get("/getClients", function(req, res) {
-    Client.find({})
-      .then(clients => {
-        if (clients) res.json({ confirmation: "success", data: clients });
-        else res.json({ confirmation: "fail" });
-      })
-      .catch(err => res.json({ confirmation: "FAIL" }));
-  });
-
-  app.post("/editClient", function(req, res) {
-    Client.findOne({ _id: req.body.id })
-      .then(data => {
-        if (data) {
-          data.name = req.body.name;
-          data.lastName = req.body.lastName;
-          data.cardId = req.body.cardId;
-          data.markModified("cardId");
-          data.save();
-          res.json({ confirmation: "success", data });
-        } else res.json({ confirmation: "fail" });
-      })
-      .catch(err => {
-        res.json({ confirmation: "FAIL" });
-      });
-  });
-
-  app.post("/checkClient", function(req, res) {
-    Client.findOne({ cardId: req.body.cardId })
-      .then(data => {
-        if (data) {
-          res.json({ confirmation: "success", data });
-        } else res.json({ confirmation: "fail" });
-      })
-      .catch(err => {
-        res.json({ confirmation: "FAIL" });
-      });
-  });
-
-  app.post("/claim-benefit", function(req, res) {
+  // El claim coordina las dos mitades: pregunta el saldo al plugin (dueño de
+  // beneficios) y manda el claimBeer a la línea (dominio del core). El
+  // descuento real lo hace el plugin cuando llega el evento del canje.
+  app.post("/claim-benefit", async function(req, res) {
     const { cardId, benefit, lineId } = req.body;
-    console.warn("cardId: "+cardId);
-    console.warn("benefit: "+benefit);
-    console.warn("lineId: "+lineId);
-    Client.findOne({ cardId: cardId })
-      .then(data => {
-        if (data) {
-          switch (benefit) {
-            case "beers":
-              if (data.benefits.beers > 0) {
-                Line.findOne({ _id: lineId }).then(line => {
-                  console.warn("Sí llegó y encontró");
-                  const socket = io.sockets.connected[line.socketId];
-                  console.warn(io.sockets.connected);
-                  console.warn("éste es el socket "+socket);
-                  console.warn("y éste es el socketId "+line.socketId);
+    if (benefit !== "beers") return res.json({ confirmation: "fail" });
+    try {
+      const data = await checkClient(cardId);
+      if (!data) return res.json({ confirmation: "fail" });
+      if (!(data.benefits && data.benefits.beers > 0))
+        return res.json({ confirmation: "fail", message: "Sin beneficios" });
 
-                  if (socket) socket.emit("claimBeer", data._id);
-                  else {
-                    const beers = data.benefits.beers;
-                    data.benefits.beers = beers - 1;
-                    data.markModified("benefits");
-                    data.save();
-                  }
-                });
-              }
-              res.json({ confirmation: "success", data });
-              break;
-            default:
-              break;
-          }
-        } else res.json({ confirmation: "fail" });
-      })
-      .catch(err => {
-        res.json({ confirmation: "FAIL" });
+      Line.findOne({ _id: lineId }).then(line => {
+        if (!line) return;
+        if (mqttBridge.isOnline(line._id))
+          return mqttBridge.publishToLine(line._id, "claimBeer", data._id);
+        const socket = io.sockets.connected[line.socketId];
+
+        if (socket) socket.emit("claimBeer", data._id);
+        // semántica previa: con la línea desconectada se descuenta directo
+        else events.publish("benefit-consumed", { clientId: data._id });
       });
-  });
-
-  app.post("/addSaleClient", function(req, res) {
-    Client.findOne({ cardId: req.body.cardId })
-      .then(data => {
-        if (data) {
-          // beersDrinked es numérico en el resto del sistema
-          data.beersDrinked =
-            (data.beersDrinked || 0) + parseInt(req.body.beers, 10);
-
-          // Nivel por umbrales de config.levels; solo sube, nunca baja
-          let nuevoNivel = 1;
-          if (data.beersDrinked >= config.levels[2]) nuevoNivel = 3;
-          else if (data.beersDrinked >= config.levels[1]) nuevoNivel = 2;
-          data.level = Math.max(data.level || 1, nuevoNivel);
-
-          data.markModified("beersDrinked");
-          data.markModified("level");
-          data.save();
-          res.json({ confirmation: "success", data });
-        } else res.json({ confirmation: "fail" });
-      })
-      .catch(err => {
-        res.json({ confirmation: "FAIL" });
-      });
-  });
-
-  app.post("/addBenefitsToClient", function(req, res) {
-    const { clientId, beersDrinked } = req.body;
-    
-    Client.findOne({ _id: clientId })
-      .then(client => {
-        if (client) {
-          // Agregar cervezas tomadas
-          if (beersDrinked && beersDrinked > 0) {
-            client.beersDrinked = client.beersDrinked + parseInt(beersDrinked);
-            client.markModified("beersDrinked");
-            
-            client.save()
-              .then(updatedClient => {
-                res.json({ confirmation: "success", data: updatedClient });
-              })
-              .catch(saveErr => {
-                console.error("Error al guardar cliente:", saveErr);
-                res.json({ confirmation: "fail", message: "Error al guardar" });
-              });
-          } else {
-            res.json({ confirmation: "fail", message: "Debe especificar cantidad" });
-          }
-        } else {
-          res.json({ confirmation: "fail", message: "Cliente no encontrado" });
-        }
-      })
-      .catch(err => {
-        console.error("Error al buscar cliente:", err);
-        res.json({ confirmation: "FAIL", error: err.message });
-      });
+      res.json({ confirmation: "success", data });
+    } catch (err) {
+      console.error("claim-benefit:", err);
+      res.json({ confirmation: "FAIL" });
+    }
   });
 
   app.post("/editPersonal", upload.single("file"), function(req, res) {
@@ -386,6 +268,8 @@ module.exports = function(app, io) {
         if (err) res.json({ confirmation: "fail" });
         else {
           io.emit("addEmergencyCard", { data: req.body.cardId });
+          // retained: las líneas MQTT apagadas la reciben al arrancar
+          mqttBridge.publishEmergencyCard(req.body.cardId);
           res.json({ confirmation: "success" });
         }
       }
@@ -405,8 +289,12 @@ module.exports = function(app, io) {
         data.idKeg = "";
         data.markModified("idKeg");
         data.save();
-        const socket = io.sockets.connected[data.socketId];
-        if (socket) socket.emit("disconnectedLine");
+        if (mqttBridge.isOnline(data._id)) {
+          mqttBridge.publishDisconnectedLine(data._id);
+        } else {
+          const socket = io.sockets.connected[data.socketId];
+          if (socket) socket.emit("disconnectedLine");
+        }
         res.json({ confirmation: "success" });
       } else {
         res.json({ confirmation: "fail" });
@@ -426,51 +314,13 @@ module.exports = function(app, io) {
   });
 
   app.post("/sale_completed", function(req, res) {
-    var ObjectId = mongoose.Types.ObjectId;
-    var newSale = new Sale();
-    newSale._id = new ObjectId().toString();
-    newSale.date = new Date();
-    req.body.clientId ? (newSale.clientId = req.body.clientId) : null;
-    Object.assign(newSale, req.body);
-    Keg.findOne({ _id: req.body.kegId }, (err, data) => {
-      if (data) {
-        console.log(data.available - req.body.qty);
-        data.available = data.available - req.body.qty;
-        switch (req.body.concept) {
-          case "TASTER":
-            data.taster = data.taster + 1;
-            break;
-          case "PINT":
-            data.soldPints = data.soldPints + 1;
-            break;
-          case "GROWLER":
-            data.growlers.push({ qty: newSale.qty });
-            break;
-          case "MERMA":
-            data.merma += newSale.qty;
-            break;
-          default:
-        }
-        data.markModified("available");
-        data.save();
-        newSale.save((err, doc) => {
-          if (req.body.clientId) {
-            Client.findOne({ _id: req.body.clientId }, (err, client) => {
-              if (client) {
-                client.beersDrinked++;
-                client.markModified("beersDrinked");
-                client.save();
-              }
-            });
-          }
-          if (doc) {
-            res.json({ confirmation: "success", data: doc });
-          } else {
-            res.json({ confirmation: "fail" });
-          }
-        });
-      } else res.json({ confirmation: "fail" });
-    });
+    if (!req.body || !req.body.kegId) return res.json({ confirmation: "fail" });
+    registerSale(req.body)
+      .then(({ sale }) => res.json({ confirmation: "success", data: sale }))
+      .catch(err => {
+        console.error("/sale_completed:", err.message);
+        res.json({ confirmation: "fail" });
+      });
   });
 
   ////////////////////////////////////////////////////////////////////
@@ -484,21 +334,27 @@ module.exports = function(app, io) {
     const { cardId, lineId, concept } = req.body;
     Worker.findOne({ cardId }, (err, data) => {
       if (data) {
-        // ======================== Here We must use some sort of conditional to watch the state of the line ========================
-        if (true) {
-          Line.findOne({ _id: lineId }, (err, line) => {
-            const socket = io.sockets.connected[line.socketId];
-            const arduinoConcept = config.options[concept];
-            if (socket) {
-              socket.emit("remoteSell", {
-                confirmation: "success",
-                data,
-                concept: arduinoConcept
-              });
-              res.json({ confirmation: "success" });
-            } else res.json({ confirmation: "LL not connected" });
-          });
-        } else res.json({ confirmation: "No Staff nor beers" });
+        Line.findOne({ _id: lineId }, (err, line) => {
+          if (err || !line)
+            return res.json({ confirmation: "fail", msg: "Línea no existe" });
+          const arduinoConcept = config.options[concept];
+          if (arduinoConcept === undefined)
+            return res.json({ confirmation: "fail", msg: "Concepto inválido" });
+          const payload = {
+            confirmation: "success",
+            data,
+            concept: arduinoConcept
+          };
+          if (mqttBridge.isOnline(line._id)) {
+            mqttBridge.publishToLine(line._id, "remoteSell", payload);
+            return res.json({ confirmation: "success" });
+          }
+          const socket = io.sockets.connected[line.socketId];
+          if (socket) {
+            socket.emit("remoteSell", payload);
+            res.json({ confirmation: "success" });
+          } else res.json({ confirmation: "LL not connected" });
+        });
       } else res.json({ confirmation: "No Worker Exist" });
     });
   });
@@ -562,8 +418,11 @@ module.exports = function(app, io) {
             newKeg.save();
             line.idKeg = req.body.newKeg;
             line.markModified("idKeg");
-            line.save();
-            //const socket = io.sockets.connected[line.socketId];
+            // Esperar el save antes de refrescar el info retenido: el puente
+            // MQTT relee la línea de la base para armar el "device info"
+            line.save(() => {
+              mqttBridge.publishDeviceInfo(line._id);
+            });
             io.emit("changeLine", { data: line });
             res.json({ confirmation: "success", data: line });
           } else res.json({ confirmation: "fail" });
