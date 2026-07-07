@@ -1,7 +1,7 @@
 # Graph Report - /Users/elw/Documents/Proyectos-Personales/Tap O Meter/Programación/Tap & Pour/KRN_32_ENV/ToM Server  (2026-07-07)
 
 ## Corpus Check
-- 25 files · ~45,664 words
+- 25 files · ~45,705 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary

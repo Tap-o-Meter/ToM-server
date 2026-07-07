@@ -15,8 +15,12 @@ const events = require("./events");
 function registerSale(msg, opts) {
   opts = opts || {};
   const qty = parseFloat(msg.qty) || 0;
+  // El firmware manda qty en LITROS (serve_options del KRN_32: ".473", "1"...)
+  // pero los campos volumétricos del barril (available/capacity/merma) viven
+  // en ML. Se convierte solo aquí; Sale.qty se conserva en litros como siempre.
+  const qtyMl = qty * 1000;
 
-  const inc = { available: -qty };
+  const inc = { available: -qtyMl };
   const update = { $inc: inc };
   switch (msg.concept) {
     case "TASTER":
@@ -26,7 +30,7 @@ function registerSale(msg, opts) {
       inc.soldPints = 1;
       break;
     case "MERMA":
-      inc.merma = qty;
+      inc.merma = qtyMl;
       break;
     case "GROWLER":
       update.$push = { growlers: { qty: msg.qty } };
