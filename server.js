@@ -109,6 +109,17 @@ app.set("views", __dirname + "/views");
 app.engine("html", require("ejs").renderFile);
 app.use(express.static(path.join(__dirname, "public")));
 
+// Web DM (tom_dm_web compilado con publicPath /client/). Debe montarse antes
+// de routes.js, que registra el 404 catch-all. El fallback a index.html es
+// para el router en history mode (/client/dashboard, etc.).
+const dmDist = process.env.DM_WEB_DIST || path.join(__dirname, "public", "client");
+app.use("/client", express.static(dmDist));
+app.get("/client/*", function(req, res) {
+  res.sendFile(path.join(dmDist, "index.html"), err => {
+    if (err) res.status(404).send("Web DM no compilado (falta " + dmDist + ")");
+  });
+});
+
 // require("./config/passport")(passport); // pass passport for configuration
 
 // set up our express application

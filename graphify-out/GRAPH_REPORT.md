@@ -1,12 +1,12 @@
 # Graph Report - /Users/elw/Documents/Proyectos-Personales/Tap O Meter/Programación/Tap & Pour/KRN_32_ENV/ToM Server  (2026-07-07)
 
 ## Corpus Check
-- 25 files · ~45,705 words
+- 27 files · ~76,624 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 94 nodes · 91 edges · 23 communities detected
-- Extraction: 79% EXTRACTED · 21% INFERRED · 0% AMBIGUOUS · INFERRED: 19 edges (avg confidence: 0.78)
+- 1527 nodes · 4221 edges · 79 communities detected
+- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 77 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -33,18 +33,74 @@
 - [[_COMMUNITY_Community 20|Community 20]]
 - [[_COMMUNITY_Community 21|Community 21]]
 - [[_COMMUNITY_Community 22|Community 22]]
+- [[_COMMUNITY_Community 23|Community 23]]
+- [[_COMMUNITY_Community 24|Community 24]]
+- [[_COMMUNITY_Community 25|Community 25]]
+- [[_COMMUNITY_Community 26|Community 26]]
+- [[_COMMUNITY_Community 27|Community 27]]
+- [[_COMMUNITY_Community 28|Community 28]]
+- [[_COMMUNITY_Community 29|Community 29]]
+- [[_COMMUNITY_Community 30|Community 30]]
+- [[_COMMUNITY_Community 31|Community 31]]
+- [[_COMMUNITY_Community 32|Community 32]]
+- [[_COMMUNITY_Community 33|Community 33]]
+- [[_COMMUNITY_Community 34|Community 34]]
+- [[_COMMUNITY_Community 35|Community 35]]
+- [[_COMMUNITY_Community 36|Community 36]]
+- [[_COMMUNITY_Community 37|Community 37]]
+- [[_COMMUNITY_Community 38|Community 38]]
+- [[_COMMUNITY_Community 39|Community 39]]
+- [[_COMMUNITY_Community 40|Community 40]]
+- [[_COMMUNITY_Community 41|Community 41]]
+- [[_COMMUNITY_Community 42|Community 42]]
+- [[_COMMUNITY_Community 43|Community 43]]
+- [[_COMMUNITY_Community 44|Community 44]]
+- [[_COMMUNITY_Community 45|Community 45]]
+- [[_COMMUNITY_Community 46|Community 46]]
+- [[_COMMUNITY_Community 47|Community 47]]
+- [[_COMMUNITY_Community 48|Community 48]]
+- [[_COMMUNITY_Community 49|Community 49]]
+- [[_COMMUNITY_Community 50|Community 50]]
+- [[_COMMUNITY_Community 51|Community 51]]
+- [[_COMMUNITY_Community 52|Community 52]]
+- [[_COMMUNITY_Community 53|Community 53]]
+- [[_COMMUNITY_Community 54|Community 54]]
+- [[_COMMUNITY_Community 55|Community 55]]
+- [[_COMMUNITY_Community 56|Community 56]]
+- [[_COMMUNITY_Community 57|Community 57]]
+- [[_COMMUNITY_Community 58|Community 58]]
+- [[_COMMUNITY_Community 59|Community 59]]
+- [[_COMMUNITY_Community 60|Community 60]]
+- [[_COMMUNITY_Community 61|Community 61]]
+- [[_COMMUNITY_Community 62|Community 62]]
+- [[_COMMUNITY_Community 63|Community 63]]
+- [[_COMMUNITY_Community 64|Community 64]]
+- [[_COMMUNITY_Community 65|Community 65]]
+- [[_COMMUNITY_Community 66|Community 66]]
+- [[_COMMUNITY_Community 67|Community 67]]
+- [[_COMMUNITY_Community 68|Community 68]]
+- [[_COMMUNITY_Community 69|Community 69]]
+- [[_COMMUNITY_Community 70|Community 70]]
+- [[_COMMUNITY_Community 71|Community 71]]
+- [[_COMMUNITY_Community 72|Community 72]]
+- [[_COMMUNITY_Community 73|Community 73]]
+- [[_COMMUNITY_Community 74|Community 74]]
+- [[_COMMUNITY_Community 75|Community 75]]
+- [[_COMMUNITY_Community 76|Community 76]]
+- [[_COMMUNITY_Community 77|Community 77]]
+- [[_COMMUNITY_Community 78|Community 78]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `handleMessage()` - 9 edges
-2. `Chikilla Craft Brewery` - 9 edges
-3. `publish()` - 6 edges
-4. `redeemBenefitBeer()` - 4 edges
-5. `rewardsFetch()` - 4 edges
-6. `handleStatus()` - 4 edges
-7. `Express Server Bootstrap with Socket.IO` - 4 edges
-8. `Authentication System` - 4 edges
-9. `registerSale()` - 3 edges
-10. `checkClient()` - 3 edges
+1. `A()` - 83 edges
+2. `render()` - 74 edges
+3. `r()` - 74 edges
+4. `e()` - 70 edges
+5. `c()` - 61 edges
+6. `i()` - 61 edges
+7. `n()` - 57 edges
+8. `u()` - 56 edges
+9. `O()` - 56 edges
+10. `s()` - 52 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Home Page with Beer Display` --references--> `Cloudinary Image Upload Service`  [INFERRED]
@@ -68,145 +124,409 @@
 ## Communities
 
 ### Community 0 - "Community 0"
-Cohesion: 0.22
-Nodes (8): addLineToList(), handleMessage(), handleStatus(), makeReply(), parseJson(), removeLineFromList(), redeemBenefitBeer(), registerSale()
+Cohesion: 0.01
+Nodes (23): backgroundStyle(), calculateTableDate(), CanvasRenderer(), createCanvas(), customFilterWithColumns(), defaultTitleDateFormatter(), destroyed(), Ea() (+15 more)
 
 ### Community 1 - "Community 1"
+Cohesion: 0.05
+Nodes (198): $(), months(), _(), A(), Ae(), Ai(), allItems(), An (+190 more)
+
+### Community 2 - "Community 2"
+Cohesion: 0.02
+Nodes (76): a(), B(), beforeDestroy(), changeRoute(), cleanupLocalState(), closeBenefitsModal(), closeModal(), closeScreen() (+68 more)
+
+### Community 3 - "Community 3"
+Cohesion: 0.02
+Nodes (141): keg(), openModal(), __cachedBackground(), __cachedBorder(), __cachedDeterminate(), __cachedDismissible(), __cachedIndeterminate(), __cachedStream() (+133 more)
+
+### Community 4 - "Community 4"
+Cohesion: 0.03
+Nodes (93): exportData(), launchFilePicker(), activateMenu(), addPropertyDecorator(), animateClick(), blur(), calculateInputHeight(), changeListIndex() (+85 more)
+
+### Community 5 - "Community 5"
+Cohesion: 0.04
+Nodes (50): onChangeBeer(), b(), beforeMount(), checkMultipleProp(), created(), current(), CVTransformEffect(), genColor() (+42 more)
+
+### Community 6 - "Community 6"
+Cohesion: 0.05
+Nodes (51): createItemProps(), dayFormatter(), eventColorFunction(), eventTextColorFunction(), genBodyIntervals(), genButton(), genButtonClasses(), genButtonEvents() (+43 more)
+
+### Community 7 - "Community 7"
+Cohesion: 0.07
+Nodes (25): status(), publish(), getOrCreateLine(), addLineToList(), clearRetainedInfo(), handleMessage(), handleSetup(), handleStatus() (+17 more)
+
+### Community 8 - "Community 8"
+Cohesion: 0.07
+Nodes (37): activate(), activeZIndex(), attach(), beforeDestroy(), calcWidths(), callActivate(), checkChange(), closeConditional() (+29 more)
+
+### Community 9 - "Community 9"
+Cohesion: 0.09
+Nodes (22): bezFunction(), createNS(), createSizedArray(), CVCompElement(), CVMaskElement(), HCompElement(), HShapeElement(), MaskElement() (+14 more)
+
+### Community 10 - "Community 10"
+Cohesion: 0.11
+Nodes (20): absolutePosition(), addActivatorEvents(), checkActivatorFixed(), checkForPageYOffset(), genActivatorListeners(), getActivator(), getOffsetTop(), getRoundedBoundedClientRect() (+12 more)
+
+### Community 11 - "Community 11"
+Cohesion: 0.18
+Nodes (1): q()
+
+### Community 12 - "Community 12"
+Cohesion: 0.12
+Nodes (18): crossProduct(), floatEqual(), floatZero(), getIntersection(), joinLines(), lerp(), lerpPoint(), linearOffset() (+10 more)
+
+### Community 13 - "Community 13"
+Cohesion: 0.18
+Nodes (17): $bm_isInstanceOfArray(), $bm_neg(), div(), getPerpendicularVector(), getProjectingAngle(), isNumerable(), length(), mul() (+9 more)
+
+### Community 14 - "Community 14"
 Cohesion: 0.14
 Nodes (14): Authentication System, Cloudinary Image Upload Service, Docker Deployment for Raspberry Pi, Environment Variables Configuration, HTTPS/SSL Configuration, Home Page with Beer Display, Login Page, MongoDB Data Persistence (+6 more)
 
-### Community 2 - "Community 2"
-Cohesion: 0.17
-Nodes (0): 
-
-### Community 3 - "Community 3"
-Cohesion: 0.17
-Nodes (12): Beer Bottle Icon SVG, Chardonnay Barrel Aged Conditioning, Chikilla Craft Brewery, Drink Glass Icon SVG, Gose Beer Style, Piggybank Icon - Cost/Savings Concept, Nightwars Character - Female Warrior with Beer, Black Helmet Imperial Stout - Chikilla Barrel Aged (+4 more)
-
-### Community 4 - "Community 4"
-Cohesion: 0.22
-Nodes (6): checkClient(), isAvailable(), rewardsFetch(), forward(), validateClient(), validateWorker()
-
-### Community 5 - "Community 5"
-Cohesion: 0.29
-Nodes (6): publish(), clearRetainedInfo(), publishDisconnectedLine(), publishEmergencyCard(), publishEvent(), publishToLine()
-
-### Community 6 - "Community 6"
-Cohesion: 0.4
-Nodes (2): getOrCreateLine(), handleSetup()
-
-### Community 7 - "Community 7"
-Cohesion: 0.67
-Nodes (0): 
-
-### Community 8 - "Community 8"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 9 - "Community 9"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 10 - "Community 10"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 11 - "Community 11"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 12 - "Community 12"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 13 - "Community 13"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 14 - "Community 14"
-Cohesion: 1.0
-Nodes (0): 
-
 ### Community 15 - "Community 15"
-Cohesion: 1.0
+Cohesion: 0.17
 Nodes (0): 
 
 ### Community 16 - "Community 16"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.17
+Nodes (12): Beer Bottle Icon SVG, Chardonnay Barrel Aged Conditioning, Chikilla Craft Brewery, Drink Glass Icon SVG, Gose Beer Style, Piggybank Icon - Cost/Savings Concept, Nightwars Character - Female Warrior with Beer, Black Helmet Imperial Stout - Chikilla Barrel Aged (+4 more)
 
 ### Community 17 - "Community 17"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.2
+Nodes (10): genCaption(), genColgroup(), genDefaultScopedSlot(), genFoot(), genFooter(), genFooters(), genHeaders(), genLoading() (+2 more)
 
 ### Community 18 - "Community 18"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.22
+Nodes (10): Aa(), da(), fa(), ga(), ha(), ia(), la(), ma() (+2 more)
 
 ### Community 19 - "Community 19"
+Cohesion: 0.29
+Nodes (8): angle(), angleToValue(), euclidean(), isAllowed(), onDragMove(), onMouseDown(), setMouseDownValue(), wheel()
+
+### Community 20 - "Community 20"
+Cohesion: 0.29
+Nodes (7): callDeactivate(), clearDelay(), deactivate(), disabled(), mouseEnterHandler(), mouseLeaveHandler(), runDelay()
+
+### Community 21 - "Community 21"
+Cohesion: 0.47
+Nodes (6): days(), getCategoryList(), getEndOfWeek(), getStartOfWeek(), renderProps(), todayWeek()
+
+### Community 22 - "Community 22"
+Cohesion: 0.4
+Nodes (5): CanvasContext(), initialize$2(), initiateExpression(), random(), seedRandom()
+
+### Community 23 - "Community 23"
+Cohesion: 0.5
+Nodes (5): formatTime(), getFormatter(), monthLongFormatter(), monthShortFormatter(), title()
+
+### Community 24 - "Community 24"
+Cohesion: 0.6
+Nodes (5): addBrightnessToRGB(), addHueToRGB(), addSaturationToRGB(), HSVtoRGB(), RGBtoHSV()
+
+### Community 25 - "Community 25"
+Cohesion: 0.4
+Nodes (5): dateClick(), emitInput(), isDateAllowed(), monthClick(), yearClick()
+
+### Community 26 - "Community 26"
+Cohesion: 0.4
+Nodes (5): checkPath(), hasScrollbar(), isInside(), scrollListener(), shouldScroll()
+
+### Community 27 - "Community 27"
+Cohesion: 0.5
+Nodes (5): calcLeft(), calcLeftAuto(), calculatedLeft(), calcXOverflow(), getOffsetLeft()
+
+### Community 28 - "Community 28"
+Cohesion: 0.4
+Nodes (5): createQuaternion(), getValueAtCurrentTime(), interpolateValue(), quaternionToEuler(), slerp()
+
+### Community 29 - "Community 29"
+Cohesion: 0.67
+Nodes (4): genAlpha(), genHue(), genSliders(), genTrack()
+
+### Community 30 - "Community 30"
+Cohesion: 0.5
+Nodes (4): boxIntersect(), intersectData(), intersectsImpl(), splitData()
+
+### Community 31 - "Community 31"
+Cohesion: 0.5
+Nodes (4): getNow(), updateDay(), updateTime(), updateTimes()
+
+### Community 32 - "Community 32"
+Cohesion: 0.67
+Nodes (4): calcTop(), calculatedTop(), calcYOverflow(), getInnerHeight()
+
+### Community 33 - "Community 33"
+Cohesion: 0.5
+Nodes (4): genInternalMessages(), internalErrorMessages(), internalMessages(), internalSuccessMessages()
+
+### Community 34 - "Community 34"
+Cohesion: 0.5
+Nodes (4): Cs(), Ls(), ua(), Xs()
+
+### Community 35 - "Community 35"
+Cohesion: 0.67
+Nodes (0): 
+
+### Community 36 - "Community 36"
+Cohesion: 1.0
+Nodes (3): isAllowedHourCb(), isAllowedMinuteCb(), isAllowedSecondCb()
+
+### Community 37 - "Community 37"
+Cohesion: 0.67
+Nodes (3): genControls(), genEdit(), genPreview()
+
+### Community 38 - "Community 38"
+Cohesion: 0.67
+Nodes (3): emitColor(), handleClick(), handleMouseMove()
+
+### Community 39 - "Community 39"
+Cohesion: 0.67
+Nodes (3): computedItems(), paginateItems(), sortItems()
+
+### Community 40 - "Community 40"
+Cohesion: 0.67
+Nodes (3): genHead(), genHeadDays(), genHeadIntervals()
+
+### Community 41 - "Community 41"
+Cohesion: 0.67
+Nodes (3): eventCategoryFunction(), eventTimedFunction(), parseEvent()
+
+### Community 42 - "Community 42"
+Cohesion: 0.67
+Nodes (3): genList(), genListWithSlot(), genMenu()
+
+### Community 43 - "Community 43"
+Cohesion: 0.67
+Nodes (3): calculateTouchArea(), swipeLeft(), swipeRight()
+
+### Community 44 - "Community 44"
+Cohesion: 1.0
+Nodes (2): eventModeFunction(), getScopedSlots()
+
+### Community 45 - "Community 45"
+Cohesion: 1.0
+Nodes (2): genIntervalLabel(), intervalFormatter()
+
+### Community 46 - "Community 46"
+Cohesion: 1.0
+Nodes (2): calcScrollPosition(), calcTopAuto()
+
+### Community 47 - "Community 47"
+Cohesion: 1.0
+Nodes (2): isMouseover(), updateMiniVariant()
+
+### Community 48 - "Community 48"
+Cohesion: 1.0
+Nodes (2): checkReady(), searchAnimations()
+
+### Community 49 - "Community 49"
+Cohesion: 1.0
+Nodes (2): onAfterTransition(), onTransitionCancelled()
+
+### Community 50 - "Community 50"
+Cohesion: 1.0
+Nodes (2): genSortChip(), genSortIcon()
+
+### Community 51 - "Community 51"
+Cohesion: 1.0
+Nodes (2): shouldValidate(), unregister()
+
+### Community 52 - "Community 52"
+Cohesion: 1.0
+Nodes (2): groupedItems(), groupItems()
+
+### Community 53 - "Community 53"
+Cohesion: 1.0
+Nodes (2): genCircle(), genSvg()
+
+### Community 54 - "Community 54"
+Cohesion: 1.0
+Nodes (2): addDecorator(), initialize()
+
+### Community 55 - "Community 55"
+Cohesion: 1.0
+Nodes (2): internalIndex(), updateReverse()
+
+### Community 56 - "Community 56"
+Cohesion: 1.0
+Nodes (2): hslToRgb(), hue2rgb()
+
+### Community 57 - "Community 57"
+Cohesion: 1.0
+Nodes (2): processEffectsSequence(), setVValue()
+
+### Community 58 - "Community 58"
+Cohesion: 1.0
+Nodes (2): roundValues(), setQuality()
+
+### Community 59 - "Community 59"
+Cohesion: 1.0
+Nodes (2): register(), watchInput()
+
+### Community 60 - "Community 60"
+Cohesion: 1.0
+Nodes (2): ks(), Ws()
+
+### Community 61 - "Community 61"
+Cohesion: 1.0
+Nodes (2): genSlotSelection(), selection()
+
+### Community 62 - "Community 62"
+Cohesion: 1.0
+Nodes (2): inputWidth(), roundValue()
+
+### Community 63 - "Community 63"
+Cohesion: 1.0
+Nodes (2): extrema(), quadRoots()
+
+### Community 64 - "Community 64"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 20 - "Community 20"
+### Community 65 - "Community 65"
+Cohesion: 1.0
+Nodes (0): 
+
+### Community 66 - "Community 66"
+Cohesion: 1.0
+Nodes (0): 
+
+### Community 67 - "Community 67"
+Cohesion: 1.0
+Nodes (0): 
+
+### Community 68 - "Community 68"
+Cohesion: 1.0
+Nodes (0): 
+
+### Community 69 - "Community 69"
+Cohesion: 1.0
+Nodes (0): 
+
+### Community 70 - "Community 70"
+Cohesion: 1.0
+Nodes (0): 
+
+### Community 71 - "Community 71"
+Cohesion: 1.0
+Nodes (0): 
+
+### Community 72 - "Community 72"
+Cohesion: 1.0
+Nodes (0): 
+
+### Community 73 - "Community 73"
+Cohesion: 1.0
+Nodes (0): 
+
+### Community 74 - "Community 74"
+Cohesion: 1.0
+Nodes (0): 
+
+### Community 75 - "Community 75"
+Cohesion: 1.0
+Nodes (0): 
+
+### Community 76 - "Community 76"
 Cohesion: 1.0
 Nodes (1): Socket.IO Event Handlers
 
-### Community 21 - "Community 21"
+### Community 77 - "Community 77"
 Cohesion: 1.0
 Nodes (1): Local JSON Data for Kegs
 
-### Community 22 - "Community 22"
+### Community 78 - "Community 78"
 Cohesion: 1.0
 Nodes (1): Middle Finger Gesture - Protest/Refusal Icon
 
 ## Knowledge Gaps
 - **19 isolated node(s):** `Login Page`, `Signup Page`, `Home Page with Beer Display`, `User Profile Page`, `HTTPS/SSL Configuration` (+14 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **Thin community `Community 8`** (1 nodes): `server.js`
+- **Thin community `Community 44`** (2 nodes): `eventModeFunction()`, `getScopedSlots()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 9`** (1 nodes): `Client.js`
+- **Thin community `Community 45`** (2 nodes): `genIntervalLabel()`, `intervalFormatter()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 10`** (1 nodes): `Line.js`
+- **Thin community `Community 46`** (2 nodes): `calcScrollPosition()`, `calcTopAuto()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 11`** (1 nodes): `stock.js`
+- **Thin community `Community 47`** (2 nodes): `isMouseover()`, `updateMiniVariant()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 12`** (1 nodes): `user.js`
+- **Thin community `Community 48`** (2 nodes): `checkReady()`, `searchAnimations()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 13`** (1 nodes): `beer.js`
+- **Thin community `Community 49`** (2 nodes): `onAfterTransition()`, `onTransitionCancelled()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 14`** (1 nodes): `worker.js`
+- **Thin community `Community 50`** (2 nodes): `genSortChip()`, `genSortIcon()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 15`** (1 nodes): `sale.js`
+- **Thin community `Community 51`** (2 nodes): `shouldValidate()`, `unregister()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 16`** (1 nodes): `keg.js`
+- **Thin community `Community 52`** (2 nodes): `groupedItems()`, `groupItems()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 17`** (1 nodes): `barrels.js`
+- **Thin community `Community 53`** (2 nodes): `genCircle()`, `genSvg()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 18`** (1 nodes): `database.js`
+- **Thin community `Community 54`** (2 nodes): `addDecorator()`, `initialize()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 19`** (1 nodes): `index.js`
+- **Thin community `Community 55`** (2 nodes): `internalIndex()`, `updateReverse()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 20`** (1 nodes): `Socket.IO Event Handlers`
+- **Thin community `Community 56`** (2 nodes): `hslToRgb()`, `hue2rgb()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 21`** (1 nodes): `Local JSON Data for Kegs`
+- **Thin community `Community 57`** (2 nodes): `processEffectsSequence()`, `setVValue()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 22`** (1 nodes): `Middle Finger Gesture - Protest/Refusal Icon`
+- **Thin community `Community 58`** (2 nodes): `roundValues()`, `setQuality()`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 59`** (2 nodes): `register()`, `watchInput()`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 60`** (2 nodes): `ks()`, `Ws()`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 61`** (2 nodes): `genSlotSelection()`, `selection()`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 62`** (2 nodes): `inputWidth()`, `roundValue()`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 63`** (2 nodes): `extrema()`, `quadRoots()`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 64`** (1 nodes): `server.js`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 65`** (1 nodes): `Client.js`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 66`** (1 nodes): `Line.js`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 67`** (1 nodes): `stock.js`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 68`** (1 nodes): `user.js`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 69`** (1 nodes): `beer.js`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 70`** (1 nodes): `worker.js`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 71`** (1 nodes): `sale.js`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 72`** (1 nodes): `keg.js`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 73`** (1 nodes): `barrels.js`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 74`** (1 nodes): `database.js`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 75`** (1 nodes): `index.js`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 76`** (1 nodes): `Socket.IO Event Handlers`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 77`** (1 nodes): `Local JSON Data for Kegs`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 78`** (1 nodes): `Middle Finger Gesture - Protest/Refusal Icon`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `handleMessage()` connect `Community 0` to `Community 4`, `Community 6`?**
-  _High betweenness centrality (0.082) - this node is a cross-community bridge._
-- **Why does `validateClient()` connect `Community 4` to `Community 0`?**
-  _High betweenness centrality (0.053) - this node is a cross-community bridge._
-- **Are the 4 inferred relationships involving `handleMessage()` (e.g. with `registerSale()` and `validateWorker()`) actually correct?**
-  _`handleMessage()` has 4 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 5 inferred relationships involving `Chikilla Craft Brewery` (e.g. with `Nightwars Character - Female Warrior with Beer` and `Piggybank Icon - Cost/Savings Concept`) actually correct?**
-  _`Chikilla Craft Brewery` has 5 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 5 inferred relationships involving `publish()` (e.g. with `redeemBenefitBeer()` and `publishToLine()`) actually correct?**
-  _`publish()` has 5 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 2 inferred relationships involving `redeemBenefitBeer()` (e.g. with `publish()` and `handleMessage()`) actually correct?**
-  _`redeemBenefitBeer()` has 2 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `$()` connect `Community 1` to `Community 2`, `Community 11`?**
+  _High betweenness centrality (0.047) - this node is a cross-community bridge._
+- **Why does `On()` connect `Community 1` to `Community 0`, `Community 2`, `Community 7`?**
+  _High betweenness centrality (0.033) - this node is a cross-community bridge._
+- **Why does `q()` connect `Community 11` to `Community 0`, `Community 1`, `Community 3`, `Community 4`, `Community 5`?**
+  _High betweenness centrality (0.024) - this node is a cross-community bridge._
 - **What connects `Login Page`, `Signup Page`, `Home Page with Beer Display` to the rest of the system?**
   _19 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Community 0` be split into smaller, more focused modules?**
+  _Cohesion score 0.01 - nodes in this community are weakly interconnected._
+- **Should `Community 1` be split into smaller, more focused modules?**
+  _Cohesion score 0.05 - nodes in this community are weakly interconnected._
+- **Should `Community 2` be split into smaller, more focused modules?**
+  _Cohesion score 0.02 - nodes in this community are weakly interconnected._
