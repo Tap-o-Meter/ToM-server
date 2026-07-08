@@ -722,18 +722,34 @@ module.exports = function(app, io, mqttBridge) {
               .sort({ noLinea: "asc" })
               .exec()
               .then(lines => {
-                var placeInfo;
-                const folder = "/home/tom/Documents/Beer_control/data";
+                var placeInfo = null;
+                // Mismo folder/override que socketHandlers y lineService; los
+                // JSON pueden faltar fuera de la Pi y no deben tumbar la ruta
+                const folder =
+                  process.env.DATA_FOLDER ||
+                  "/home/tom/Documents/Beer_control/data";
                 fs.readFile(folder + "/local.json", "utf8", function(
                   err,
                   jsonDoc
                 ) {
-                  placeInfo = JSON.parse(jsonDoc);
+                  try {
+                    placeInfo = JSON.parse(jsonDoc);
+                  } catch (e) {
+                    console.error("getSummary: local.json ilegible:", e.message);
+                  }
                   fs.readFile(folder + "/.emergencyCard.json", "utf8", function(
                     err,
                     emergencyDoc
                   ) {
-                    const emergencyCard = JSON.parse(emergencyDoc);
+                    let emergencyCard = null;
+                    try {
+                      emergencyCard = JSON.parse(emergencyDoc);
+                    } catch (e) {
+                      console.error(
+                        "getSummary: .emergencyCard.json ilegible:",
+                        e.message
+                      );
+                    }
 
                     const fullDate = new Date();
 
