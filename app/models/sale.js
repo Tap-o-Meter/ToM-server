@@ -6,6 +6,9 @@ var saleSchema = mongoose.Schema({
   kegId: String,
   concept: String,
   qty: String,
+  // ml servidos por encima del qty nominal (top-up del firmware); qty se
+  // conserva nominal porque las vistas cuentan tamaños por match exacto
+  extraMl: { type: Number, default: 0 },
   clientId: String,
   date: { type: Date }
 });

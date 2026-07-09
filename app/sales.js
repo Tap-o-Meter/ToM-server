@@ -19,8 +19,11 @@ function registerSale(msg, opts) {
   // pero los campos volumétricos del barril (available/capacity/merma) viven
   // en ML. Se convierte solo aquí; Sale.qty se conserva en litros como siempre.
   const qtyMl = qty * 1000;
+  // Top-up: ml extra sobre el qty nominal (campo "extra" del firmware);
+  // descuentan barril y quedan en la venta, sin tocar la semántica de qty
+  const extraMl = Math.max(0, parseInt(msg.extra, 10) || 0);
 
-  const inc = { available: -qtyMl };
+  const inc = { available: -(qtyMl + extraMl) };
   const update = { $inc: inc };
   switch (msg.concept) {
     case "TASTER":
@@ -42,6 +45,7 @@ function registerSale(msg, opts) {
   newSale._id = new mongoose.Types.ObjectId().toString();
   newSale.date = new Date();
   Object.assign(newSale, msg);
+  newSale.extraMl = extraMl;
 
   return Keg.findOneAndUpdate({ _id: msg.kegId }, update, { new: true })
     .exec()
@@ -82,7 +86,8 @@ function redeemBenefitBeer(msg) {
       kegId: msg.kegId,
       workerId: "N/A",
       concept: "PINT",
-      qty: ".473"
+      qty: ".473",
+      extra: msg.extra
     },
     { skipClientCount: true }
   );
